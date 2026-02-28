@@ -59,7 +59,7 @@ end
 
 %% ===== Test 3: On-axis point is feasible =====
 fprintf('Test 3: LOS feasibility for on-axis point r_TB = [0; y; 0]\n');
-[A_los, b_los] = los_polyhedral_constraints(p.cone_k, p.y_min, ...
+[A_los, b_los] = los_tetra_constraints(p.cone_k, p.y_min, ...
                     p.cone_nfaces, p.Np, p.nx, p.nu);
 % Construct a z-vector with x_k = [0; 50; 0; 0; 0; 0] for all k
 % and u_k = 0 for all k

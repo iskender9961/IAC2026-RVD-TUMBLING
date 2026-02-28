@@ -107,6 +107,11 @@ lg.dock_axis_lvlh_hist(:,1) = dock_axis_lvlh;
 lg.t_hist(1)              = 0;
 lg.ref_hist(:,1)          = compute_reference(0, p);
 
+% Set cone draw length from initial y distance (fixed for all GIFs)
+if p.cone_draw_L <= 0
+    p.cone_draw_L = r_tb(2) * 1.2;
+end
+
 %% ===== Build initial OSQP problem =====
 fprintf('Linearizing initial model...\n');
 [Ad, Bd] = linearize_discrete_model(x_tb, R_eci_tb, ...
@@ -155,7 +160,7 @@ for k = 1:Nsteps
     lg.status_hist{k}     = status;
     lg.solve_time_hist(k) = solve_time;
 
-    if ~strcmp(status, 'solved') && ~strcmp(status, 'solved_inaccurate')
+    if ~contains(status, 'solved')
         fprintf('[TERMINATED] OSQP infeasible at t=%.1f s  (status: %s)\n', t_now, status);
         fprintf('  r_TB = [%.3f, %.3f, %.3f] m\n', r_tb(1), r_tb(2), r_tb(3));
         final_step = k - 1;

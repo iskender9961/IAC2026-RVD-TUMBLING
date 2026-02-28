@@ -64,7 +64,7 @@ function animate_scene(log, p)
             {'x_L','y_L','z_L'}, {'-.','-.','-.'});
 
         % --- Draw body-fixed LOS cone ---
-        draw_cone_poly([0;0;0], eye(3), p.cone_k, p.cone_draw_L, ...
+        draw_los_tetra([0;0;0], eye(3), p.cone_k, p.cone_draw_L, ...
             p.cone_nfaces, [0.8 0.6 0]);
 
         % --- Draw trajectory so far (in TB frame) ---

@@ -1,6 +1,6 @@
-function h = draw_cone_poly(origin, R, cone_k, cone_L, nfaces, color)
-%DRAW_CONE_POLY  Draw a polyhedral cone (wireframe) attached to a body frame.
-%   h = draw_cone_poly(origin, R, cone_k, cone_L, nfaces, color)
+function h = draw_los_tetra(origin, R, cone_k, cone_L, nfaces, color)
+%DRAW_LOS_TETRA  Draw polyhedral LOS corridor (wireframe) attached to a body frame.
+%   h = draw_los_tetra(origin, R, cone_k, cone_L, nfaces, color)
 %   origin  : 3x1 apex position (target center)
 %   R       : 3x3 rotation matrix (body frame to plot frame; cone axis = R*[0;1;0])
 %   cone_k  : tan(half_angle)

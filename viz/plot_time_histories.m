@@ -49,7 +49,7 @@ function plot_time_histories(log, p)
     plot3(0, 0, 0, 'bp', 'MarkerSize', 15, 'MarkerFaceColor', 'b');
 
     % Draw LOS cone wireframe
-    draw_cone_poly([0;0;0], eye(3), p.cone_k, max(y_T)*1.1, ...
+    draw_los_tetra([0;0;0], eye(3), p.cone_k, max(y_T)*1.1, ...
         p.cone_nfaces, [0.8 0.6 0]);
 
     xlabel('x_{TB} [m]'); ylabel('y_{TB} [m]'); zlabel('z_{TB} [m]');

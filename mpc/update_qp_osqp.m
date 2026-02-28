@@ -23,7 +23,7 @@ function [u_opt, status, x_pred] = update_qp_osqp(prob, data, Ad, Bd, x0, x_ref,
     res = prob_new.solve();
     status = res.info.status;
 
-    if ~strcmp(status, 'solved') && ~strcmp(status, 'solved_inaccurate')
+    if ~contains(status, 'solved')
         u_opt = zeros(nu, 1);
         x_pred = [];
         return;

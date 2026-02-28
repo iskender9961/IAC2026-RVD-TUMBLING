@@ -1,6 +1,6 @@
-function [A_los, b_los] = los_polyhedral_constraints(cone_k, y_min, nfaces, Np, nx, nu)
-%LOS_POLYHEDRAL_CONSTRAINTS  Build polyhedral LOS cone constraints for QP.
-%   [A_los, b_los] = los_polyhedral_constraints(cone_k, y_min, nfaces, Np, nx, nu)
+function [A_los, b_los] = los_tetra_constraints(cone_k, y_min, nfaces, Np, nx, nu)
+%LOS_TETRA_CONSTRAINTS  Build polyhedral LOS corridor constraints for QP.
+%   [A_los, b_los] = los_tetra_constraints(cone_k, y_min, nfaces, Np, nx, nu)
 %
 %   The LOS cone (body-fixed, axis = +yT) is:
 %       sqrt(xT^2 + zT^2) <= cone_k * yT   and   yT >= y_min

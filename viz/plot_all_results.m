@@ -28,7 +28,7 @@ function plot_all_results(lg, p, results_dir)
     y_max_tb = max(lg.r_tb_hist(2,:)) * 1.2;
     plot3([0 0], [0 y_max_tb], [0 0], 'k--', 'LineWidth', 2);
     % LOS cone wireframe
-    draw_cone_poly([0;0;0], eye(3), cone_k, y_max_tb, p.cone_nfaces, [0.8 0.5 0]);
+    draw_los_tetra([0;0;0], eye(3), cone_k, y_max_tb, p.cone_nfaces, [0.8 0.5 0]);
     xlabel('x_{TB} [m]'); ylabel('y_{TB} [m]'); zlabel('z_{TB} [m]');
     title('3D Trajectory -- Target Body Frame');
     legend('Trajectory','Start','End','Target','Docking axis (+y_{TB})', ...
@@ -76,7 +76,7 @@ function plot_all_results(lg, p, results_dir)
         'rs', 'MarkerSize', 12, 'MarkerFaceColor', 'r');
     plot3(0,0,0,'kp','MarkerSize',15,'MarkerFaceColor','k');
     plot3([0 0], [0 y_max_tb], [0 0], 'k--', 'LineWidth', 2);
-    draw_cone_poly([0;0;0], eye(3), cone_k, y_max_tb, p.cone_nfaces, [0.8 0.5 0]);
+    draw_los_tetra([0;0;0], eye(3), cone_k, y_max_tb, p.cone_nfaces, [0.8 0.5 0]);
     xlabel('x_{CB} [m]'); ylabel('y_{CB} [m]'); zlabel('z_{CB} [m]');
     title('3D Trajectory -- Chaser Body Frame');
     legend('Trajectory','Start','End','Target','Docking axis','Location','best');

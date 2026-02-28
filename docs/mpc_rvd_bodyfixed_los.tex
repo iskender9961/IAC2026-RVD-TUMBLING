@@ -48,7 +48,7 @@
 
 % ====================================================================
 \title{MPC-Based Rendezvous with Tumbling Target:\\
-       Body-Fixed LOS Constraints}
+       Body-Fixed LOS Tetrahedral Corridor Constraints}
 \author{Iskender O.B.}
 \date{}
 \maketitle
@@ -57,12 +57,15 @@
 \begin{abstract}
 This document describes a model-predictive-control (MPC) formulation for
 autonomous rendezvous and docking with a tumbling target spacecraft.
-The key feature is that the line-of-sight (LOS) keep-out cone constraint
-is expressed in the \emph{target body frame}, so that it naturally
+The key feature is that the line-of-sight (LOS) keep-out corridor
+constraint---approximated as a tetrahedral (polyhedral) cone---is
+expressed in the \emph{target body frame}, so that it naturally
 rotates with the tumbling target.  The plant propagation uses nonlinear
 ECI dynamics with $J_2$ perturbations, while the MPC prediction model
 uses a linear time-varying (LTV) discrete system re-linearised at every
 control step.  The resulting quadratic programme is solved with OSQP.
+The primary cost driver is input smoothness ($\Delta\bu$ penalty),
+with a small absolute input regularisation term.
 \end{abstract}
 
 \tableofcontents
@@ -202,7 +205,7 @@ For reference the three key constants are collected here:
 
 The plant model is integrated with MATLAB's \texttt{ode113}
 (variable-step Adams--Bashforth--Moulton) using tight tolerances
-($\texttt{RelTol} = 10^{-12}$, $\texttt{AbsTol} = 10^{-14}$).
+($\texttt{RelTol} = 10^{-10}$, $\texttt{AbsTol} = 10^{-12}$).
 Integration proceeds one MPC control interval $\Delta t$ at a time so
 that the piece-wise-constant control input is applied exactly.
 
@@ -347,7 +350,7 @@ Element-wise box constraints on the thrust acceleration:
   \qquad k = 0,\ldots,N-1.
 \end{equation}
 
-\subsection{Body-Fixed LOS Cone Constraint}\label{sec:los}
+\subsection{Body-Fixed LOS Tetrahedral Corridor Constraint}\label{sec:los}
 
 The docking corridor is a cone about the $+\hat{\bm{y}}_T$ axis with
 half-angle $\alpha$.  In the TB frame the chaser position is
@@ -360,14 +363,15 @@ cone constraint is
 which ensures the chaser lies inside the cone and ahead of the minimum
 distance plane.
 
-\paragraph{Polyhedral approximation.}
-To keep the problem as a QP (rather than SOCP), the cone is
-approximated by $m$ half-planes.  Define
+\paragraph{Tetrahedral (polyhedral) approximation.}
+To keep the problem as a QP (rather than SOCP), the circular cone is
+approximated by $m$ half-planes, forming a \emph{tetrahedral corridor}.
+Define
 \begin{equation}\label{eq:theta_i}
   \theta_i = \frac{2\pi\,(i-1)}{m}, \qquad i = 1,\ldots,m,
   \qquad k = \tan(\alpha).
 \end{equation}
-Then the polyhedral inner approximation of~\eqref{eq:soc} is
+Then the tetrahedral inner approximation of~\eqref{eq:soc} is
 \begin{equation}\label{eq:poly_cone}
   \boxed{
   \cos\theta_i\;x_T + \sin\theta_i\;z_T \;\le\; k\;y_T,
@@ -378,13 +382,15 @@ together with
   y_T \;\ge\; y_{\min}.
 \end{equation}
 Each inequality is linear in $\bx_k$, so it enters the QP as a standard
-row of the constraint matrix.
+row of the constraint matrix.  The number of faces $m$ controls the
+tightness of the approximation; $m = 8$ (octahedral) is used as the
+default.
 
 \paragraph{Key advantage.}
 Because the state $\bx$ is already expressed in the target body frame,
-the cone constraint~\eqref{eq:poly_cone} is \emph{time-invariant} in
-the MPC formulation.  The cone ``automatically'' rotates with the
-tumbling target; no explicit rotation of the constraint normals is
+the corridor constraint~\eqref{eq:poly_cone} is \emph{time-invariant}
+in the MPC formulation.  The corridor ``automatically'' rotates with
+the tumbling target; no explicit rotation of the constraint normals is
 needed at each prediction step.
 
 \subsection{Reference Trajectory}\label{sec:ref}
@@ -451,7 +457,7 @@ The constraint matrix is assembled row-by-row from three groups:
   \item \textbf{Input box constraints} ($6N$ rows: 3 lower + 3 upper per step). \\
     $-u_{\max} \le [\bu_k]_j \le u_{\max}$, $j = 1,2,3$, for each $k$.
 
-  \item \textbf{LOS polyhedral constraints} ($m \cdot (N+1) + (N+1)$ rows). \\
+  \item \textbf{LOS tetrahedral corridor constraints} ($m \cdot (N+1) + (N+1)$ rows). \\
     For every prediction step $k$ and every facet $i$:
     \[
       \cos\theta_i\;[\bx_k]_1 + \sin\theta_i\;[\bx_k]_3
@@ -460,22 +466,20 @@ The constraint matrix is assembled row-by-row from three groups:
     plus $[\bx_k]_2 \ge y_{\min}$.
 \end{enumerate}
 
-\subsection{Warm-Starting and Sparsity}
+\subsection{Solver Rebuild Strategy}
 
-The OSQP solver object is created once and stored persistently across
-MPC steps.  At each step only the entries that change are updated:
-\begin{itemize}
-  \item $\bm{q}$ (linear cost, depends on the current reference and
-        $\bu_{\text{prev}}$),
-  \item Non-zero entries of $A_{\text{qp}}$ (the $A_d$, $B_d$ blocks
-        change when re-linearised),
-  \item Bound vectors $\bm{l}$, $\bm{u}$ (if $y_{\min}$ or $u_{\max}$
-        are scheduled).
-\end{itemize}
-All matrices ($P$, $A_{\text{qp}}$) are stored in compressed sparse
-column (CSC) format, which OSQP requires.  Warm-starting the primal and
-dual variables from the previous solution typically halves the iteration
-count.
+Because the finite-difference linearisation can produce different
+sparsity patterns in $A_d$, $B_d$ across steps (zero entries may become
+nonzero and vice versa), the OSQP problem is \emph{rebuilt from scratch}
+at each MPC step rather than updated in place.  This avoids sparsity
+mismatches in OSQP's internal compressed sparse column (CSC)
+representation.
+
+While this approach forgoes the computational benefit of in-place
+updates, the problem size is modest (typically $\sim 300$ decision
+variables) and the rebuild overhead is negligible compared to the
+OSQP solve time.  All matrices ($P$, $A_{\text{qp}}$) are assembled
+as sparse MATLAB matrices and converted to CSC by the OSQP interface.
 
 
 % ====================================================================
@@ -512,8 +516,8 @@ with $\epsilon = 10^{-12}$.
 \subsection{Test 3: On-Axis Feasibility}
 
 A point on the docking axis $\br_{\text{TB}} = [0,\;y,\;0]^T$ with
-$y > y_{\min}$ must satisfy \emph{all} $m$ facets of the polyhedral
-cone~\eqref{eq:poly_cone}:
+$y > y_{\min}$ must satisfy \emph{all} $m$ facets of the tetrahedral
+corridor~\eqref{eq:poly_cone}:
 \[
   \cos\theta_i \cdot 0 + \sin\theta_i \cdot 0
   = 0 \;\le\; k\,y.
@@ -526,7 +530,7 @@ single-step problem with $\bx_0$ on the axis.
 
 When the half-angle is set to an extremely small value
 ($\alpha = 0.01^{\circ}$) and the chaser starts off-axis, the
-polyhedral constraints become so tight that no feasible trajectory
+corridor constraints become so tight that no feasible trajectory
 exists within the thrust budget.  The test asserts that OSQP returns
 status \texttt{primal\_infeasible} (or dual infeasible, depending on
 the formulation).
@@ -549,6 +553,34 @@ TB\@.
 
 
 % ====================================================================
+\section{Expected Cost Profile}\label{sec:cost_profile}
+% ====================================================================
+
+The stage cost $J_k$ exhibits a characteristic two-phase profile:
+
+\begin{enumerate}
+  \item \textbf{Synchronisation phase} ($t \lesssim 2\tau$):
+    the chaser must track the rotating docking axis.  The lateral
+    deviations $x_T$, $z_T$ are penalised heavily ($Q_{11} = Q_{33} = 15$),
+    driving the chaser onto the $+\hat{\bm{y}}_T$ axis.  During this
+    phase the cost may increase as the controller initially struggles to
+    lock onto the tumbling axis.
+
+  \item \textbf{Approach phase} ($t \gtrsim 2\tau$):
+    once synchronised with the target body frame, the cost decreases
+    monotonically as the chaser reduces $y_T$ along the docking axis.
+    The delta-u penalty ($R_{\Delta u} = 300\,I_3$) ensures smooth
+    thruster commands without chatter.
+\end{enumerate}
+
+The tuning is designed so that the cost is \emph{not} sinusoidal---it
+should rise during sync, then decay monotonically.  If the cost
+oscillates, the $R_{\Delta u}$ weight is too high (preventing the
+controller from responding to the tumble) or the $Q$ lateral weights
+are too low.
+
+
+% ====================================================================
 \section{Simulation Results}\label{sec:results}
 % ====================================================================
 
@@ -562,10 +594,10 @@ LVLH, TB).
   \centering
   \includegraphics[width=0.8\textwidth]{fig_3d_approach.png}
   \caption{Three-dimensional approach trajectory in the target body frame.
-           The translucent cone represents the polyhedral LOS constraint;
-           the chaser path (blue) remains inside the cone throughout the
-           manoeuvre.  Coordinate triads for ECI (red), LVLH (green), and
-           TB (cyan) are shown at selected epochs.}
+           The wireframe represents the tetrahedral LOS corridor constraint;
+           the chaser path (blue) remains inside the corridor throughout the
+           manoeuvre.  Coordinate triads for the target body (solid),
+           chaser (dashed), and LVLH (dash-dot) frames are shown.}
   \label{fig:3d}
 \end{figure}
 

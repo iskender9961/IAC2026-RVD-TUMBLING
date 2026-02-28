@@ -200,7 +200,56 @@ function plot_all_results(lg, p, results_dir)
     saveas(fig, fullfile(results_dir, 'fig_control_inputs.png'));
 
     %% ================================================================
-    %  17. APPROACH PROFILE (y_T, radial deviation, LOS margin)
+    %  17. CONTROL INPUT -- CHASER BODY FRAME + DELTA-U
+    %  ================================================================
+    fig = figure('Name','Control Chaser Body + DeltaU','Position',[50 50 1100 850],'Visible','on');
+
+    % u in chaser body frame (currently = TB)
+    u_cb = lg.u_hist;   % chaser body ~ TB for now
+    t_u = t(1:Nu);
+
+    subplot(3,1,1);
+    hold on;
+    plot(t_u, u_cb(1,:), 'r-', 'LineWidth', 1.2);
+    plot(t_u, u_cb(2,:), 'g-', 'LineWidth', 1.2);
+    plot(t_u, u_cb(3,:), 'b-', 'LineWidth', 1.2);
+    plot(t_u, sqrt(sum(u_cb.^2,1)), 'k-', 'LineWidth', 1.5);
+    yline( p.u_max, 'k--', 'LineWidth', 0.8);
+    yline(-p.u_max, 'k--', 'LineWidth', 0.8);
+    ylabel('u_{CB} [m/s^2]'); xlabel('Time [s]');
+    title('Control Input -- Chaser Body Frame');
+    legend('u_{xCB}','u_{yCB}','u_{zCB}','||u||','u_{max}','Location','best');
+    grid on;
+
+    % Delta-u (rate of change of input)
+    if Nu > 1
+        du = diff(u_cb, 1, 2);        % 3 x (Nu-1)
+        du_mag = sqrt(sum(du.^2, 1));  % 1 x (Nu-1)
+        t_du = t_u(2:end);            % time at each delta-u sample
+
+        subplot(3,1,2);
+        hold on;
+        plot(t_du, du(1,:), 'r-', 'LineWidth', 1.2);
+        plot(t_du, du(2,:), 'g-', 'LineWidth', 1.2);
+        plot(t_du, du(3,:), 'b-', 'LineWidth', 1.2);
+        plot(t_du, du_mag,  'k-', 'LineWidth', 1.5);
+        ylabel('\Delta u [m/s^2]'); xlabel('Time [s]');
+        title('Rate of Change of Input (\Delta u) -- Chaser Body Frame');
+        legend('\Delta u_x','\Delta u_y','\Delta u_z','||\Delta u||','Location','best');
+        grid on;
+
+        subplot(3,1,3);
+        % Cumulative delta-v (integral of ||u|| * dt)
+        dv_cumulative = cumsum(sqrt(sum(u_cb.^2,1))) * p.dt;
+        plot(t_u, dv_cumulative, 'k-', 'LineWidth', 1.8);
+        ylabel('\Delta V_{cum} [m/s]'); xlabel('Time [s]');
+        title('Cumulative \Delta V');
+        grid on;
+    end
+    saveas(fig, fullfile(results_dir, 'fig_control_chaser_body.png'));
+
+    %% ================================================================
+    %  18. APPROACH PROFILE (y_T, radial deviation, LOS margin)
     %  ================================================================
     fig = figure('Name','Approach Profile','Position',[50 50 900 700],'Visible','on');
     rad_dev = sqrt(lg.r_tb_hist(1,:).^2 + lg.r_tb_hist(3,:).^2);

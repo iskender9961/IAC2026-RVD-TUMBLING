@@ -54,10 +54,14 @@ save(fullfile(results_dir, 'rdu_comparison.mat'), ...
      'results', 'p_all', 'reasons', 'rdu_vals', 'labels');
 fprintf('\nComparison data saved.\n');
 
-%% ===== Comparison plots =====
+%% ===== Shared geometry =====
+p0 = params();
+cone_k = p0.cone_k;
+y_max = p0.dr_lvlh0(2) * 1.2;
+yy = linspace(0, y_max, 100);
 
-% --- Figure 1: y_T vs time ---
-fig1 = figure('Name','Rdu Comparison - y_T','Position',[50 50 1100 800]);
+%% ===== Figure 1: 6-panel time history comparison =====
+fig1 = figure('Name','Rdu Comparison - Time Histories','Position',[50 50 1100 800]);
 
 subplot(3,2,1); hold on; grid on;
 for ii = 1:n_cases
@@ -68,7 +72,6 @@ ylabel('y_{TB} [m]');
 title('Along-Axis Distance (y_T)');
 legend(labels, 'Location', 'northeast', 'FontSize', 8);
 
-% --- Radial deviation ---
 subplot(3,2,2); hold on; grid on;
 for ii = 1:n_cases
     lg = results{ii};
@@ -78,7 +81,6 @@ end
 ylabel('\surd(x_T^2+z_T^2) [m]');
 title('Radial Deviation');
 
-% --- Cost vs time ---
 subplot(3,2,3); hold on; grid on;
 for ii = 1:n_cases
     lg = results{ii};
@@ -88,7 +90,6 @@ end
 ylabel('J_k'); set(gca, 'YScale', 'log');
 title('Stage Cost (log scale)');
 
-% --- Control magnitude ---
 subplot(3,2,4); hold on; grid on;
 for ii = 1:n_cases
     lg = results{ii};
@@ -99,7 +100,6 @@ end
 ylabel('||u|| [m/s^2]');
 title('Control Magnitude');
 
-% --- Velocity magnitude ---
 subplot(3,2,5); hold on; grid on;
 for ii = 1:n_cases
     lg = results{ii};
@@ -109,7 +109,6 @@ end
 xlabel('Time [s]'); ylabel('|v_{TB}| [m/s]');
 title('Relative Velocity');
 
-% --- Delta-u magnitude ---
 subplot(3,2,6); hold on; grid on;
 for ii = 1:n_cases
     lg = results{ii};
@@ -125,39 +124,166 @@ title('Input Rate (\Delta u)');
 
 sgtitle('R_{\Delta u} Comparison Study', 'FontSize', 14, 'FontWeight', 'bold');
 saveas(fig1, fullfile(results_dir, 'fig_rdu_comparison.png'));
-fprintf('Comparison plot saved.\n');
+fprintf('  Fig 1: time history comparison saved.\n');
 
-% --- Figure 2: 2D trajectory overlay in TB xy ---
-fig2 = figure('Name','Rdu Comparison - TB XY','Position',[100 100 900 700]);
+%% ===== Figure 2: 3D trajectory overlay -- TB frame =====
+fig2 = figure('Name','Rdu Comparison - 3D TB','Position',[100 50 900 750]);
 hold on; grid on; axis equal;
-
-% Cone
-p0 = params();
-y_max = p0.dr_lvlh0(2) * 1.2;
-yy = linspace(0, y_max, 100);
-fill([p0.cone_k*yy, fliplr(-p0.cone_k*yy)], [yy, fliplr(yy)], ...
-    [1 0.95 0.8], 'FaceAlpha', 0.15, 'EdgeColor', 'none');
-plot( p0.cone_k*yy, yy, 'Color',[0.8 0.5 0],'LineWidth',1.2);
-plot(-p0.cone_k*yy, yy, 'Color',[0.8 0.5 0],'LineWidth',1.2);
-plot([0 0], [0 y_max], 'k--', 'LineWidth', 1.5);
-
+% Cone wireframe + docking axis
+draw_los_tetra([0;0;0], eye(3), cone_k, y_max, p0.cone_nfaces, [0.8 0.5 0]);
+plot3([0 0], [0 y_max], [0 0], 'k--', 'LineWidth', 1.5);
+plot3(0, 0, 0, 'kp', 'MarkerSize', 15, 'MarkerFaceColor', 'k');
+h_traj = gobjects(n_cases, 1);
 for ii = 1:n_cases
     lg = results{ii};
-    plot(lg.r_tb_hist(1,:), lg.r_tb_hist(2,:), '-', ...
+    h_traj(ii) = plot3(lg.r_tb_hist(1,:), lg.r_tb_hist(2,:), lg.r_tb_hist(3,:), ...
+        '-', 'Color', colors{ii}, 'LineWidth', 1.5);
+    plot3(lg.r_tb_hist(1,1), lg.r_tb_hist(2,1), lg.r_tb_hist(3,1), ...
+        'o', 'Color', colors{ii}, 'MarkerSize', 6, 'MarkerFaceColor', colors{ii}, ...
+        'HandleVisibility', 'off');
+    plot3(lg.r_tb_hist(1,end), lg.r_tb_hist(2,end), lg.r_tb_hist(3,end), ...
+        's', 'Color', colors{ii}, 'MarkerSize', 8, 'MarkerFaceColor', colors{ii}, ...
+        'HandleVisibility', 'off');
+end
+xlabel('x_{TB} [m]'); ylabel('y_{TB} [m]'); zlabel('z_{TB} [m]');
+title('3D Trajectory Comparison -- Target Body Frame');
+legend(h_traj, labels, 'Location', 'best', 'FontSize', 8);
+view(135, 25);
+saveas(fig2, fullfile(results_dir, 'fig_rdu_3d_tb.png'));
+fprintf('  Fig 2: 3D TB comparison saved.\n');
+
+%% ===== Figure 3: 2D XY -- TB frame (with cone) =====
+fig3 = figure('Name','Rdu Comparison - TB XY','Position',[100 100 900 700]);
+hold on; grid on; axis equal;
+fill([cone_k*yy, fliplr(-cone_k*yy)], [yy, fliplr(yy)], ...
+    [1 0.95 0.8], 'FaceAlpha', 0.15, 'EdgeColor', 'none', 'HandleVisibility', 'off');
+plot( cone_k*yy, yy, 'Color',[0.8 0.5 0],'LineWidth',1.2, 'HandleVisibility', 'off');
+plot(-cone_k*yy, yy, 'Color',[0.8 0.5 0],'LineWidth',1.2, 'HandleVisibility', 'off');
+plot([0 0], [0 y_max], 'k--', 'LineWidth', 1.5, 'HandleVisibility', 'off');
+h_traj = gobjects(n_cases, 1);
+for ii = 1:n_cases
+    lg = results{ii};
+    h_traj(ii) = plot(lg.r_tb_hist(1,:), lg.r_tb_hist(2,:), '-', ...
         'Color', colors{ii}, 'LineWidth', 1.5);
     plot(lg.r_tb_hist(1,end), lg.r_tb_hist(2,end), 'o', ...
-        'Color', colors{ii}, 'MarkerSize', 8, 'MarkerFaceColor', colors{ii});
+        'Color', colors{ii}, 'MarkerSize', 8, 'MarkerFaceColor', colors{ii}, ...
+        'HandleVisibility', 'off');
 end
-plot(0, p0.dr_lvlh0(2), 'g^', 'MarkerSize', 12, 'MarkerFaceColor', 'g');
-
+plot(0, p0.dr_lvlh0(2), 'g^', 'MarkerSize', 12, 'MarkerFaceColor', 'g', ...
+    'HandleVisibility', 'off');
 xlabel('x_{TB} [m]'); ylabel('y_{TB} [m]');
-title('TB Frame XY -- All Scenarios');
-legend([{'Cone','','','Axis'}, labels], 'Location', 'best', 'FontSize', 8);
-saveas(fig2, fullfile(results_dir, 'fig_rdu_trajectories_xy.png'));
+title('2D XY Trajectory Comparison -- Target Body Frame');
+legend(h_traj, labels, 'Location', 'best', 'FontSize', 8);
+saveas(fig3, fullfile(results_dir, 'fig_rdu_trajectories_xy.png'));
+fprintf('  Fig 3: 2D XY TB comparison saved.\n');
 
-% --- Figure 3: Summary table as text ---
-fig3 = figure('Name','Rdu Summary','Position',[150 150 700 250]);
-ax = axes('Visible','off');
+%% ===== Figure 4: 2D XZ -- TB frame (with cone circles) =====
+fig4 = figure('Name','Rdu Comparison - TB XZ','Position',[150 100 900 700]);
+hold on; grid on; axis equal;
+for yslice = [50, 100, 150, 200]
+    th = linspace(0, 2*pi, 60);
+    rr = cone_k * yslice;
+    plot(rr*cos(th), rr*sin(th), ':', 'Color', [0.8 0.5 0], 'LineWidth', 0.8, ...
+        'HandleVisibility', 'off');
+end
+h_traj = gobjects(n_cases, 1);
+for ii = 1:n_cases
+    lg = results{ii};
+    h_traj(ii) = plot(lg.r_tb_hist(1,:), lg.r_tb_hist(3,:), '-', ...
+        'Color', colors{ii}, 'LineWidth', 1.5);
+    plot(lg.r_tb_hist(1,end), lg.r_tb_hist(3,end), 'o', ...
+        'Color', colors{ii}, 'MarkerSize', 8, 'MarkerFaceColor', colors{ii}, ...
+        'HandleVisibility', 'off');
+end
+xlabel('x_{TB} [m]'); ylabel('z_{TB} [m]');
+title('2D XZ Trajectory Comparison -- Target Body Frame');
+legend(h_traj, labels, 'Location', 'best', 'FontSize', 8);
+saveas(fig4, fullfile(results_dir, 'fig_rdu_trajectories_xz.png'));
+fprintf('  Fig 4: 2D XZ TB comparison saved.\n');
+
+%% ===== Figure 5: 2D YZ -- TB frame (with cone edges) =====
+fig5 = figure('Name','Rdu Comparison - TB YZ','Position',[200 100 900 700]);
+hold on; grid on; axis equal;
+plot([0 y_max], [0 0], 'k--', 'LineWidth', 1.5, 'HandleVisibility', 'off');
+plot(yy,  cone_k*yy, 'Color', [0.8 0.5 0], 'LineWidth', 1.2, 'HandleVisibility', 'off');
+plot(yy, -cone_k*yy, 'Color', [0.8 0.5 0], 'LineWidth', 1.2, 'HandleVisibility', 'off');
+h_traj = gobjects(n_cases, 1);
+for ii = 1:n_cases
+    lg = results{ii};
+    h_traj(ii) = plot(lg.r_tb_hist(2,:), lg.r_tb_hist(3,:), '-', ...
+        'Color', colors{ii}, 'LineWidth', 1.5);
+    plot(lg.r_tb_hist(2,end), lg.r_tb_hist(3,end), 'o', ...
+        'Color', colors{ii}, 'MarkerSize', 8, 'MarkerFaceColor', colors{ii}, ...
+        'HandleVisibility', 'off');
+end
+xlabel('y_{TB} [m]'); ylabel('z_{TB} [m]');
+title('2D YZ Trajectory Comparison -- Target Body Frame');
+legend(h_traj, labels, 'Location', 'best', 'FontSize', 8);
+saveas(fig5, fullfile(results_dir, 'fig_rdu_trajectories_yz.png'));
+fprintf('  Fig 5: 2D YZ TB comparison saved.\n');
+
+%% ===== Figure 6: Control input comparison (u components) =====
+fig6 = figure('Name','Rdu Comparison - Control','Position',[50 50 1100 850]);
+for ax = 1:3
+    subplot(3,1,ax); hold on; grid on;
+    for ii = 1:n_cases
+        lg = results{ii};
+        Nu = size(lg.u_hist, 2);
+        plot(lg.t_hist(1:Nu), lg.u_hist(ax,:), '-', 'Color', colors{ii}, 'LineWidth', 1);
+    end
+    ax_labels = {'x','y','z'};
+    ylabel(sprintf('u_{%s} [m/s^2]', ax_labels{ax}));
+    if ax == 1
+        title('Control Input Components -- All Scenarios');
+        legend(labels, 'Location', 'best', 'FontSize', 8);
+    end
+    if ax == 3, xlabel('Time [s]'); end
+end
+saveas(fig6, fullfile(results_dir, 'fig_rdu_control_components.png'));
+fprintf('  Fig 6: control input comparison saved.\n');
+
+%% ===== Figure 7: Delta-u comparison (components) =====
+fig7 = figure('Name','Rdu Comparison - DeltaU','Position',[100 50 1100 850]);
+for ax = 1:3
+    subplot(3,1,ax); hold on; grid on;
+    for ii = 1:n_cases
+        lg = results{ii};
+        Nu = size(lg.u_hist, 2);
+        if Nu > 1
+            du = diff(lg.u_hist, 1, 2);
+            plot(lg.t_hist(2:Nu), du(ax,:), '-', 'Color', colors{ii}, 'LineWidth', 1);
+        end
+    end
+    ax_labels = {'x','y','z'};
+    ylabel(sprintf('\\Delta u_{%s} [m/s^2]', ax_labels{ax}));
+    if ax == 1
+        title('\Delta u Components -- All Scenarios');
+        legend(labels, 'Location', 'best', 'FontSize', 8);
+    end
+    if ax == 3, xlabel('Time [s]'); end
+end
+saveas(fig7, fullfile(results_dir, 'fig_rdu_deltau_components.png'));
+fprintf('  Fig 7: delta-u comparison saved.\n');
+
+%% ===== Figure 8: Cumulative delta-V comparison =====
+fig8 = figure('Name','Rdu Comparison - DeltaV','Position',[150 50 800 500]);
+hold on; grid on;
+h_traj = gobjects(n_cases, 1);
+for ii = 1:n_cases
+    lg = results{ii};
+    Nu = size(lg.u_hist, 2);
+    dv_cum = cumsum(sqrt(sum(lg.u_hist.^2, 1))) * p_all{ii}.dt;
+    h_traj(ii) = plot(lg.t_hist(1:Nu), dv_cum, '-', 'Color', colors{ii}, 'LineWidth', 1.5);
+end
+xlabel('Time [s]'); ylabel('\Delta V_{cum} [m/s]');
+title('Cumulative \Delta V -- All Scenarios');
+legend(h_traj, labels, 'Location', 'best', 'FontSize', 8);
+saveas(fig8, fullfile(results_dir, 'fig_rdu_deltav.png'));
+fprintf('  Fig 8: cumulative delta-V comparison saved.\n');
+
+%% ===== Figure 9: Summary table =====
+fig9 = figure('Name','Rdu Summary','Position',[150 150 700 250]);
+axes('Visible','off');
 txt = sprintf('%-20s | %8s | %8s | %8s | %10s | %s\n', ...
     'Scenario', 't_end[s]', 'y_end[m]', 'rdev[m]', 'DeltaV[m/s]', 'Status');
 txt = [txt, repmat('-',1,80), newline];
@@ -166,14 +292,14 @@ for ii = 1:n_cases
     t_end = lg.t_hist(end);
     y_end = lg.r_tb_hist(2, end);
     rd_end = sqrt(lg.r_tb_hist(1,end)^2 + lg.r_tb_hist(3,end)^2);
-    % Total delta-v = sum(||u|| * dt)
     dv_total = sum(sqrt(sum(lg.u_hist.^2, 1))) * p_all{ii}.dt;
     txt = [txt, sprintf('Rdu=%.0e (y/10)     | %8.0f | %8.1f | %8.2f | %10.2f | %s\n', ...
         rdu_vals(ii), t_end, y_end, rd_end, dv_total, reasons{ii})];
 end
 text(0.05, 0.5, txt, 'FontName', 'Courier', 'FontSize', 10, ...
     'VerticalAlignment', 'middle', 'HorizontalAlignment', 'left');
-saveas(fig3, fullfile(results_dir, 'fig_rdu_summary.png'));
+saveas(fig9, fullfile(results_dir, 'fig_rdu_summary.png'));
+fprintf('  Fig 9: summary table saved.\n');
 
-fprintf('\nAll comparison plots saved to results/\n');
+fprintf('\nAll %d comparison plots saved to results/\n', 9);
 fprintf('Done.\n');

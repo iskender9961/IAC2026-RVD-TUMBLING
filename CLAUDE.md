@@ -23,7 +23,11 @@ Body-fixed LOS tetrahedral corridor constraint, nonlinear ECI truth dynamics, LT
 ```
 params.m             -- central config (all tuning knobs here)
 main_sim.m           -- entry point, simulation loop, logging
+run_sim_headless.m   -- headless simulation (used by MC and comparisons)
 run_tests.m          -- 5 sanity tests
+run_rdu_comparison.m -- Rdu sweep (4 scenarios) with comparison plots/GIFs
+run_monte_carlo.m    -- MC feasibility sweep (parfor, saves .mat + plots)
+plot_mc_figures.m    -- regenerate MC plots from saved mc_sweep_all.mat
 
 dynamics/            -- ECI equations of motion
   accel_2body.m, accel_J2.m, eom_eci.m, propagate_truth_step.m
@@ -38,7 +42,8 @@ mpc/                 -- MPC formulation and solver
 
 viz/                 -- visualization
   plot_all_results.m, plot_time_histories.m, generate_gifs.m,
-  draw_los_tetra.m, draw_cube.m, draw_triad.m, animate_scene.m
+  generate_comparison_gifs.m, draw_los_tetra.m, draw_cube.m,
+  draw_triad.m, animate_scene.m
 
 utils/               -- small helpers
   skew.m, clamp.m, assert_units.m
@@ -70,7 +75,9 @@ All tuning parameters are in `params.m`. Key knobs:
 ```matlab
 >> main_sim          % full simulation + plots + GIFs
 >> run_tests         % sanity checks (should print "All tests PASSED")
->> run_monte_carlo   % MC feasibility analysis (uses parfor)
+>> run_rdu_comparison  % Rdu sweep + comparison plots + GIFs
+>> run_monte_carlo     % MC feasibility sweep (omega x a_max, parfor)
+>> plot_mc_figures     % regenerate MC plots from saved data (no re-run)
 ```
 
 ## Performance
@@ -78,7 +85,20 @@ All tuning parameters are in `params.m`. Key knobs:
 - Use `parallel.pool.DataQueue` for progress reporting inside `parfor`
 - For MC speed: reduce `Np`, `Tsim`, relax ODE tolerances, reduce `osqp_max_iter`
 
+## MC Compatibility Contract
+Any changes to the simulation code MUST keep MC scripts working. The chain is:
+```
+params.m → run_sim_headless.m → run_monte_carlo.m → plot_mc_figures.m
+```
+- `run_sim_headless(p)` is the MC workhorse. Its signature and output struct `lg` must not break.
+- `lg` must always contain: `r_tb_hist`, `v_tb_hist`, `t_hist`, `u_hist`, `cost_hist`, `status_hist`
+- `params.m` fields overridden by MC: `omega_body`, `u_max`, `Rdu`, `Np`, `Tsim`, `dr_lvlh0`, `dv_lvlh0`, `y_hold_start`, `y_hold_tau`, `cone_draw_L`, `ode_opts`, `osqp_max_iter`
+- After any code change, verify: `run_tests`, then `run_monte_carlo` (or at minimum `run_sim_headless(params())`)
+- `plot_mc_figures.m` reads from `results/mc_sweep_all.mat` -- re-run `run_monte_carlo` if `run_sim_headless` output format changes
+
 ## Do NOT
 - Do not rename `los_tetra_constraints.m` or `draw_los_tetra.m` (old names were los_polyhedral_constraints / draw_cone_poly)
 - Do not use `update('Ax', ...)` on OSQP -- always rebuild
 - Do not add dependencies beyond MATLAB base + OSQP
+- Do not change `run_sim_headless` return signature `[lg, p, sim_terminated, term_reason]`
+- Do not remove fields from the `lg` struct -- only add new ones

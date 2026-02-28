@@ -130,9 +130,9 @@ for iw = 1:n_omega
     leg_labels = cell(n_amax, 1);
     for ia = 1:n_amax
         n_ok = sum(all_data{iw, ia}.outcomes);
-        leg_labels{ia} = sprintf('a_{max}=%.2f (%d/%d)', amax_vals(ia), n_ok, size(ic_list,1));
+        leg_labels{ia} = sprintf('a_{max}=%.2f m/s^2 (%d/%d)', amax_vals(ia), n_ok, size(ic_list,1));
     end
-    legend(ax, h_layers, leg_labels, 'Location', 'northeast', 'FontSize', 10);
+    legend(ax, h_layers, leg_labels, 'Location', 'southeast', 'FontSize', 10);
 
     xlabel(ax, 'x_{TB} [m]', 'FontSize', 12);
     ylabel(ax, 'y_{TB} [m]', 'FontSize', 12);
@@ -198,7 +198,7 @@ for ia = 1:n_amax
         n_ok = sum(all_data{iw, ia}.outcomes);
         leg_labels{iw} = sprintf('\\omega=%d deg/s (%d/%d)', omega_vals_deg(iw), n_ok, size(ic_list,1));
     end
-    legend(ax, h_layers, leg_labels, 'Location', 'northeast', 'FontSize', 10);
+    legend(ax, h_layers, leg_labels, 'Location', 'southeast', 'FontSize', 10);
 
     xlabel(ax, 'x_{TB} [m]', 'FontSize', 12);
     ylabel(ax, 'y_{TB} [m]', 'FontSize', 12);

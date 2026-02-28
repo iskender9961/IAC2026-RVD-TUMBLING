@@ -7,7 +7,7 @@ To illustrate the reachability concepts before applying them to the CWH dynamics
 \end{equation}
 with state constraints $|x_1| \le 5$, $|x_2| \le 3$ and input bound $|u| \le 1$.
 
-Fig.~\ref{fig:example_overlay} shows the backward reachable sets (safe-start regions) for $N=5$ steps to a target set near the origin, computed under three assumptions:
+The backward reachable sets (safe-start regions) for $N=5$ steps to a target set near the origin are computed under three assumptions:
 \begin{itemize}
 \item \textbf{Nominal} (green): no disturbance, deterministic guarantee.
 \item \textbf{Stochastic} (blue): Gaussian noise $\mathbf{w}_k \sim \mathcal{N}(0, W)$, chance constraints with $\alpha=0.05$.
@@ -16,9 +16,10 @@ Fig.~\ref{fig:example_overlay} shows the backward reachable sets (safe-start reg
 
 The nesting $\mathcal{X}_{\text{rob}} \subseteq \mathcal{X}_{\text{stoch}} \subseteq \mathcal{X}_{\text{nom}}$ is verified numerically.  This same hierarchy, applied to the CWH dynamics with rotating LOS constraints, yields the feasibility certification results in Section~\ref{sec:hierarchy}.
 
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.85\columnwidth]{figures/overlay_comparison.pdf}
-\caption{Nested backward reachable sets for a 2D double integrator ($N=5$).  The robust set (purple) is the smallest but provides the strongest guarantee; the nominal set (green) is the largest but assumes zero disturbance.}
-\label{fig:example_overlay}
-\end{figure}
+%% Figure commented out: overlay_comparison.pdf not yet generated
+%\begin{figure}[H]
+%\centering
+%\includegraphics[width=0.85\columnwidth]{figures/overlay_comparison.pdf}
+%\caption{Nested backward reachable sets for a 2D double integrator ($N=5$).  The robust set (purple) is the smallest but provides the strongest guarantee; the nominal set (green) is the largest but assumes zero disturbance.}
+%\label{fig:example_overlay}
+%\end{figure}

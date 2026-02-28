@@ -222,8 +222,8 @@ legend(h_traj, labels, 'Location', 'best', 'FontSize', 8);
 saveas(fig5, fullfile(results_dir, 'fig_rdu_trajectories_yz.png'));
 fprintf('  Fig 5: 2D YZ TB comparison saved.\n');
 
-%% ===== Figure 6: Control input comparison (u components) =====
-fig6 = figure('Name','Rdu Comparison - Control','Position',[50 50 1100 850]);
+%% ===== Figure 6: Control input comparison -- TB frame =====
+fig6 = figure('Name','Rdu Comparison - Control TB','Position',[50 50 1100 850]);
 for ax = 1:3
     subplot(3,1,ax); hold on; grid on;
     for ii = 1:n_cases
@@ -231,16 +231,56 @@ for ax = 1:3
         Nu = size(lg.u_hist, 2);
         plot(lg.t_hist(1:Nu), lg.u_hist(ax,:), '-', 'Color', colors{ii}, 'LineWidth', 1);
     end
-    ax_labels = {'x','y','z'};
-    ylabel(sprintf('u_{%s} [m/s^2]', ax_labels{ax}));
+    ax_lab = {'x','y','z'};
+    ylabel(sprintf('u_{%s,TB} [m/s^2]', ax_lab{ax}));
     if ax == 1
-        title('Control Input Components -- All Scenarios');
+        title('Control Input -- Target Body Frame');
         legend(labels, 'Location', 'best', 'FontSize', 8);
     end
     if ax == 3, xlabel('Time [s]'); end
 end
-saveas(fig6, fullfile(results_dir, 'fig_rdu_control_components.png'));
-fprintf('  Fig 6: control input comparison saved.\n');
+saveas(fig6, fullfile(results_dir, 'fig_rdu_control_tb.png'));
+fprintf('  Fig 6: control TB comparison saved.\n');
+
+%% ===== Figure 6b: Control input comparison -- Chaser Body frame =====
+fig6b = figure('Name','Rdu Comparison - Control CB','Position',[100 50 1100 850]);
+for ax = 1:3
+    subplot(3,1,ax); hold on; grid on;
+    for ii = 1:n_cases
+        lg = results{ii};
+        Nu = size(lg.u_hist, 2);
+        plot(lg.t_hist(1:Nu), lg.u_hist(ax,:), '-', 'Color', colors{ii}, 'LineWidth', 1);
+    end
+    ax_lab = {'x','y','z'};
+    ylabel(sprintf('u_{%s,CB} [m/s^2]', ax_lab{ax}));
+    if ax == 1
+        title('Control Input -- Chaser Body Frame');
+        legend(labels, 'Location', 'best', 'FontSize', 8);
+    end
+    if ax == 3, xlabel('Time [s]'); end
+end
+saveas(fig6b, fullfile(results_dir, 'fig_rdu_control_cb.png'));
+fprintf('  Fig 6b: control CB comparison saved.\n');
+
+%% ===== Figure 6c: Control input comparison -- LVLH frame =====
+fig6c = figure('Name','Rdu Comparison - Control LVLH','Position',[150 50 1100 850]);
+for ax = 1:3
+    subplot(3,1,ax); hold on; grid on;
+    for ii = 1:n_cases
+        lg = results{ii};
+        Nu = size(lg.u_lvlh_hist, 2);
+        plot(lg.t_hist(1:Nu), lg.u_lvlh_hist(ax,:), '-', 'Color', colors{ii}, 'LineWidth', 1);
+    end
+    ax_lab = {'x','y','z'};
+    ylabel(sprintf('u_{%s,LVLH} [m/s^2]', ax_lab{ax}));
+    if ax == 1
+        title('Control Input -- LVLH Frame');
+        legend(labels, 'Location', 'best', 'FontSize', 8);
+    end
+    if ax == 3, xlabel('Time [s]'); end
+end
+saveas(fig6c, fullfile(results_dir, 'fig_rdu_control_lvlh.png'));
+fprintf('  Fig 6c: control LVLH comparison saved.\n');
 
 %% ===== Figure 7: Delta-u comparison (components) =====
 fig7 = figure('Name','Rdu Comparison - DeltaU','Position',[100 50 1100 850]);
@@ -301,5 +341,36 @@ text(0.05, 0.5, txt, 'FontName', 'Courier', 'FontSize', 10, ...
 saveas(fig9, fullfile(results_dir, 'fig_rdu_summary.png'));
 fprintf('  Fig 9: summary table saved.\n');
 
-fprintf('\nAll %d comparison plots saved to results/\n', 9);
+%% ===== Figure 10: 3D trajectory overlay -- Chaser Body frame =====
+fig10 = figure('Name','Rdu Comparison - 3D CB','Position',[200 50 900 750]);
+hold on; grid on; axis equal;
+draw_los_tetra([0;0;0], eye(3), cone_k, y_max, p0.cone_nfaces, [0.8 0.5 0]);
+plot3([0 0], [0 y_max], [0 0], 'k--', 'LineWidth', 1.5);
+plot3(0, 0, 0, 'kp', 'MarkerSize', 15, 'MarkerFaceColor', 'k');
+h_traj = gobjects(n_cases, 1);
+for ii = 1:n_cases
+    lg = results{ii};
+    % Chaser body = TB in current model
+    h_traj(ii) = plot3(lg.r_tb_hist(1,:), lg.r_tb_hist(2,:), lg.r_tb_hist(3,:), ...
+        '-', 'Color', colors{ii}, 'LineWidth', 1.5);
+    plot3(lg.r_tb_hist(1,1), lg.r_tb_hist(2,1), lg.r_tb_hist(3,1), ...
+        'o', 'Color', colors{ii}, 'MarkerSize', 6, 'MarkerFaceColor', colors{ii}, ...
+        'HandleVisibility', 'off');
+    plot3(lg.r_tb_hist(1,end), lg.r_tb_hist(2,end), lg.r_tb_hist(3,end), ...
+        's', 'Color', colors{ii}, 'MarkerSize', 8, 'MarkerFaceColor', colors{ii}, ...
+        'HandleVisibility', 'off');
+end
+xlabel('x_{CB} [m]'); ylabel('y_{CB} [m]'); zlabel('z_{CB} [m]');
+title('3D Trajectory Comparison -- Chaser Body Frame');
+legend(h_traj, labels, 'Location', 'best', 'FontSize', 8);
+view(135, 25);
+saveas(fig10, fullfile(results_dir, 'fig_rdu_3d_cb.png'));
+fprintf('  Fig 10: 3D CB comparison saved.\n');
+
+fprintf('\nAll static comparison plots saved to results/\n');
+
+%% ===== Comparison GIFs =====
+fprintf('Generating comparison GIFs...\n');
+generate_comparison_gifs(results, p_all, labels, colors, results_dir);
+
 fprintf('Done.\n');

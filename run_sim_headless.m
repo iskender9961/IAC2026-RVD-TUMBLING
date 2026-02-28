@@ -40,9 +40,13 @@ function [lg, p, sim_terminated, term_reason] = run_sim_headless(p)
     lg.r_lvlh_hist = zeros(3, Nsteps+1);
     lg.v_lvlh_hist = zeros(3, Nsteps+1);
     lg.u_hist      = zeros(3, Nsteps);
+    lg.u_lvlh_hist = zeros(3, Nsteps);
     lg.t_hist      = zeros(1, Nsteps+1);
     lg.cost_hist   = zeros(1, Nsteps);
     lg.status_hist = cell(1, Nsteps);
+    lg.R_eci_tb_hist   = zeros(3, 3, Nsteps+1);
+    lg.R_eci_lvlh_hist = zeros(3, 3, Nsteps+1);
+    lg.dock_axis_lvlh_hist = zeros(3, Nsteps+1);
 
     R_eci_lvlh = R_eci_lvlh_0;
     dr_eci = r_chs_eci - r_tgt_eci;
@@ -53,6 +57,9 @@ function [lg, p, sim_terminated, term_reason] = run_sim_headless(p)
     lg.v_tb_hist(:,1)   = v_tb;
     lg.r_lvlh_hist(:,1) = r_lvlh;
     lg.v_lvlh_hist(:,1) = v_lvlh;
+    lg.R_eci_tb_hist(:,:,1)   = R_eci_tb;
+    lg.R_eci_lvlh_hist(:,:,1) = R_eci_lvlh;
+    lg.dock_axis_lvlh_hist(:,1) = R_eci_lvlh' * R_eci_tb(:,2);
     lg.t_hist(1) = 0;
 
     % Set cone draw length
@@ -111,8 +118,11 @@ function [lg, p, sim_terminated, term_reason] = run_sim_headless(p)
         u_applied = clamp(u_opt, -p.u_max, p.u_max);
         lg.u_hist(:, k) = u_applied;
 
-        % Propagate
+        % Input in LVLH frame
         a_ctrl_eci = control_TB_to_ECI(u_applied, R_eci_tb);
+        lg.u_lvlh_hist(:, k) = R_eci_lvlh' * a_ctrl_eci;
+
+        % Propagate
         x_tgt_next = propagate_truth_step([r_tgt_eci; v_tgt_eci], ...
                         p.dt, p.mu, p.Re, p.J2, [0;0;0], p.ode_opts);
         r_tgt_eci = x_tgt_next(1:3);
@@ -150,6 +160,9 @@ function [lg, p, sim_terminated, term_reason] = run_sim_headless(p)
         lg.v_tb_hist(:, k+1)   = v_tb;
         lg.r_lvlh_hist(:, k+1) = r_lvlh;
         lg.v_lvlh_hist(:, k+1) = v_lvlh;
+        lg.R_eci_tb_hist(:,:,k+1)   = R_eci_tb;
+        lg.R_eci_lvlh_hist(:,:,k+1) = R_eci_lvlh;
+        lg.dock_axis_lvlh_hist(:,k+1) = R_eci_lvlh' * R_eci_tb(:,2);
         lg.t_hist(k+1) = k * p.dt;
 
         u_prev = u_applied;
@@ -170,9 +183,13 @@ function [lg, p, sim_terminated, term_reason] = run_sim_headless(p)
     lg.r_lvlh_hist = lg.r_lvlh_hist(:, 1:N+1);
     lg.v_lvlh_hist = lg.v_lvlh_hist(:, 1:N+1);
     lg.u_hist      = lg.u_hist(:, 1:N);
+    lg.u_lvlh_hist = lg.u_lvlh_hist(:, 1:N);
     lg.t_hist      = lg.t_hist(1:N+1);
     lg.cost_hist   = lg.cost_hist(1:N);
     lg.status_hist = lg.status_hist(1:N);
+    lg.R_eci_tb_hist   = lg.R_eci_tb_hist(:,:,1:N+1);
+    lg.R_eci_lvlh_hist = lg.R_eci_lvlh_hist(:,:,1:N+1);
+    lg.dock_axis_lvlh_hist = lg.dock_axis_lvlh_hist(:,1:N+1);
 end
 
 

@@ -8,8 +8,13 @@
 \usepackage{float}
 \usepackage{multirow}
 \usepackage[titletoc]{appendix}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric}
 
-\graphicspath{{../figures/}{../results/}}
+\newcommand{\vect}[1]{\boldsymbol{#1}}
+\newcommand{\mat}[1]{\mathbf{#1}}
+
+\graphicspath{{../figures/}{../results/}{../results/elliptic/}}
 
 \journal{Acta Astronautica}
 
@@ -656,6 +661,74 @@ All closed-loop simulations use independent ECI propagation (\texttt{ode113}) wi
 \paragraph{Implication.}
 DI truth would produce a falsely optimistic validation: approaches that appear feasible under DI may fail under CWH or nonlinear dynamics because the unmodelled secular drift pushes the chaser out of the LOS cone.  The CWH-based analytical certification is therefore appropriate for LEO, while the nonlinear truth simulation confirms that CWH predictions are not significantly biased at the ranges and durations considered.
 
+\subsection{Extension to Elliptic Orbits via Yamanaka--Ankersen STM}
+\label{sec:elliptic}
+
+The CWH model assumes a circular reference orbit ($e = 0$).  For elliptic
+orbits, the Yamanaka--Ankersen (YA) state transition matrix~\cite{Yamanaka2002}
+provides an exact discrete-time relative-motion model where the STM varies
+with the orbital phase (true anomaly~$\nu$).  We implemented a dynamics
+abstraction layer that dispatches to either CWH or YA, preserving identical
+interfaces for the reachability analysis (Appendix~\ref{app:ya_stm}).
+
+Two effects were investigated:
+
+\paragraph{Single-step erosion analysis.}
+For the erosion-based safe-start region (Section~\ref{sec:reachability}),
+the orbital coupling drift is $\mathcal{O}(n^2 r \Delta t) \sim
+10^{-4}$~m/s at LEO, while the rotation-induced drift is
+$\mathcal{O}(\omega_t r) \sim 7$~m/s---five orders of magnitude larger.
+Consequently, the single-step erosion model produces identical safe
+fractions for $e = 0$, $e = 0.1$, and $e = 0.3$, confirming that
+the erosion formula is dominated by the target tumble rate.
+
+\paragraph{Multi-step discrete analysis.}
+Over $N = 50$ backward steps with LP-based feasibility checking, the
+time-varying YA matrices produce modest differences: CWH~$31.3$\%,
+YA~($e{=}0.1$)~$35.0$\%, YA~($e{=}0.3$)~$35.0$\% safe (at $\omega_t
+{=} 2$~deg/s, $a_{\max} {=} 0.10$~m/s$^2$, starting from periapsis).
+The YA model predicts a \emph{larger} safe region near periapsis because
+the higher local angular rate produces dynamics that slightly assist the
+controller.  Over longer arcs spanning apoapsis, this advantage reverses.
+
+These results validate the CWH model as an appropriate (and slightly
+conservative) prediction model for LEO proximity operations, while
+establishing the YA-based framework for future extension to highly
+elliptic orbits or GTO transfer-orbit rendezvous.
+
+\subsection{Towards Hamilton--Jacobi Reachability}
+\label{sec:hj_discussion}
+
+The erosion-based safe-start region analysis in Section~\ref{sec:reachability}
+provides a computationally efficient inner approximation of the true
+viability kernel.  A more rigorous characterisation would employ
+Hamilton--Jacobi (HJ) reachability analysis~\cite{Mitchell2005,Bansal2017},
+which computes the exact backward reachable set (BRS) by solving the
+HJ partial differential equation:
+\begin{equation}
+  \frac{\partial V}{\partial t} + \min\!\bigl[0,\;
+  H(\mathbf{x}, \nabla V)\bigr] = 0
+\label{eq:hj_pde}
+\end{equation}
+where $V(\mathbf{x}, t)$ is the value function and $H$ is the Hamiltonian
+encoding the dynamics, control authority, and disturbances.  The zero
+sublevel set $\{\mathbf{x} : V(\mathbf{x}, t) \le 0\}$ is the exact
+viability kernel under optimal control.
+
+For the rotating-corridor problem, HJ reachability would provide:
+(i)~the exact safe-start set without the single-step braking
+approximation inherent in the erosion model,
+(ii)~optimal control policies that maximise the safe region, and
+(iii)~formal inclusion guarantees under bounded disturbances.
+The primary challenge is computational: HJ scales exponentially with
+state dimension, making the full 6D problem ($\mathbf{r}, \mathbf{v}$)
+intractable on standard hardware.  Practical approaches include
+decomposition into decoupled in-plane/out-of-plane subsystems (4D + 2D)
+or projection onto the 2D approach plane ($x_B, y_B$) with velocity
+treated parametrically.  Integration of HJ viability kernels with
+the YA time-varying dynamics for elliptic orbits is a natural extension
+of the framework developed in this paper.
+
 
 %% ========================================================================
 \section{Conclusions}
@@ -669,9 +742,10 @@ DI truth would produce a falsely optimistic validation: approaches that appear f
 \item Analytical certification: 53~s vs.\ 2--4~h MC ($\sim$200$\times$ speedup).
 \item Nonlinear truth propagation reveals double-integrator artefacts.
 \item Approach within $r_{\mathrm{sync}} = 2a_{\max}/\omega_t^2$ achieves zero LOS violations.
+\item Extension to elliptic orbits via the Yamanaka--Ankersen STM shows that the erosion-based safe region is invariant to eccentricity at LEO, validating CWH as a conservative baseline.
 \end{enumerate}
 
-Future work: Hamilton-Jacobi viability kernels, multi-phase approach strategies, 3D tumble with full Euler dynamics, and navigation uncertainty integration.
+Future work: Hamilton-Jacobi viability kernels for exact safe-set computation, multi-phase approach strategies, 3D tumble with full Euler dynamics, and navigation uncertainty integration.
 
 \section*{Acknowledgements}
 
@@ -717,6 +791,226 @@ $N_{\mathrm{eff}}$ & 50 & Noise accumulation steps \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\section{Yamanaka--Ankersen State Transition Matrix Derivation}
+\label{app:ya_stm}
+
+\subsection{Tschauner--Hempel Equations}
+\label{app:TH}
+
+The linearized equations of relative motion on an elliptical reference orbit
+are the Tschauner--Hempel (T-H) equations~\cite{TH1965}.  Using true
+anomaly $\nu$ as the independent variable instead of time, the in-plane
+relative motion satisfies:
+\begin{align}
+  x'' - 2z' &= 0
+  \label{eq:TH_x}\\
+  z'' + 2x' - \frac{3}{\rho} z &= 0
+  \label{eq:TH_z}
+\end{align}
+where primes denote differentiation with respect to $\nu$, and:
+\begin{equation}
+  \rho(\nu) = 1 + e\cos\nu
+  \label{eq:rho}
+\end{equation}
+
+The out-of-plane motion is decoupled:
+\begin{equation}
+  y'' + y = 0
+  \label{eq:TH_y}
+\end{equation}
+
+\noindent The T-H equations reduce to the standard CW (HCW) equations when
+$e = 0$ and the independent variable is changed from $\nu$ to time $t$
+(with $\nu = nt$ for circular orbits).
+
+% --- TikZ: Derivation flowchart ---
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[
+    node distance=1.4cm,
+    block/.style={draw, rounded corners, minimum width=3.8cm,
+                  minimum height=0.9cm, align=center, font=\small},
+    decision/.style={draw, diamond, aspect=2.5, align=center,
+                     font=\small, inner sep=1pt},
+    arrow/.style={->,>=Stealth,thick},
+]
+  % Flow nodes
+  \node[block,fill=gray!8] (TH)
+    {T-H Equations\\$x''-2z'=0,\; z''+2x'-\frac{3}{\rho}z=0$};
+  \node[block,fill=gray!8,below=of TH] (scaled)
+    {Scaled coordinates\\$\tilde{\vect{r}}=\rho\vect{r}$, \quad
+     $\tilde{\vect{v}}=-e\sin\nu\,\vect{r}+\frac{1}{k_2\rho}\vect{v}$};
+  \node[block,fill=gray!8,below=of scaled] (fund)
+    {Fundamental matrix $\tilde{\Phi}(\nu)$\\4 linearly independent solutions};
+  \node[block,fill=gray!8,below=of fund] (Jint)
+    {J-integral: $J = k_2(t-t_0) = \frac{h}{p^2}(t-t_0)$\\(avoids singular integrals)};
+  \node[block,fill=gray!8,below=of Jint] (STM)
+    {Full STM: $\Phi = T^{-1}(\nu_1)\,\tilde{\Phi}(\nu_1)\,
+     \tilde{\Phi}^{-1}(\nu_0)\,T(\nu_0)$};
+
+  % Decision
+  \node[decision,right=2.5cm of STM,fill=gray!8] (check)
+    {$e \to 0$?};
+  \node[block,fill=gray!8,above=0.8cm of check] (HCW)
+    {HCW/CW\\$\Phi_{\text{CW}}(nt)$};
+
+  % Arrows
+  \draw[arrow] (TH) -- (scaled)
+    node[right,font=\scriptsize,midway] {Coordinate transform};
+  \draw[arrow] (scaled) -- (fund)
+    node[right,font=\scriptsize,midway] {Solve ODE in $\nu$};
+  \draw[arrow] (fund) -- (Jint)
+    node[right,font=\scriptsize,midway] {Handle secular term};
+  \draw[arrow] (Jint) -- (STM)
+    node[right,font=\scriptsize,midway] {Assemble $6\times 6$};
+  \draw[arrow] (STM) -- (check);
+  \draw[arrow] (check) -- (HCW)
+    node[right,font=\scriptsize,midway] {Yes};
+\end{tikzpicture}
+\caption{Derivation flow for the Yamanaka--Ankersen State Transition Matrix.
+The key innovation is the J-integral, $J = k_2(t - t_0)$, which replaces
+the singular integrals present in earlier T-H solutions.}
+\label{fig:ya_derivation_flow}
+\end{figure}
+
+\subsection{Scaled Coordinates}
+\label{app:scaled}
+
+Yamanaka and Ankersen~\cite{Yamanaka2002} introduced scaled (``tilde'')
+coordinates that transform the T-H equations into a form admitting a
+closed-form fundamental matrix.  Define:
+\begin{align}
+  \tilde{\vect{r}} &= \rho\,\vect{r}
+  \label{eq:r_tilde}\\
+  \tilde{\vect{v}} &= -e\sin\nu\,\vect{r} + \frac{1}{k_2\rho}\,\vect{v}
+  \label{eq:v_tilde}
+\end{align}
+where $k_2 = h/p^2$ with $h = \sqrt{\mu p}$ the specific angular momentum
+and $p = a(1-e^2)$ the semi-latus rectum.
+
+In matrix form, the coordinate transformation is:
+\begin{equation}
+  \begin{bmatrix} \tilde{\vect{r}} \\ \tilde{\vect{v}} \end{bmatrix}
+  = \mat{T}(\nu)
+  \begin{bmatrix} \vect{r} \\ \vect{v} \end{bmatrix},
+  \qquad
+  \mat{T}(\nu) =
+  \begin{bmatrix} \rho\,\mat{I}_3 & \mat{0}_3 \\
+                  -e\sin\nu\,\mat{I}_3 & \frac{1}{k_2\rho}\mat{I}_3
+  \end{bmatrix}
+  \label{eq:T_transform}
+\end{equation}
+
+\subsection{Fundamental Matrix}
+\label{app:fund_matrix}
+
+In the scaled coordinates, the in-plane fundamental matrix columns are
+constructed from four linearly independent solution vectors.  Define the
+auxiliary functions:
+\begin{align}
+  s(\nu) &= \rho\sin\nu & c(\nu) &= \rho\cos\nu
+  \label{eq:s_c}\\
+  s'(\nu) &= \cos\nu + e\cos 2\nu & c'(\nu) &= -(\sin\nu + e\sin 2\nu)
+  \label{eq:sp_cp}
+\end{align}
+
+The $4 \times 4$ in-plane fundamental matrix at true anomaly $\nu$
+(in the paper's $[x, z, \dot{x}, \dot{z}]$ ordering) is:
+\begin{equation}
+  \tilde{\Phi}_{\text{ip}}(\nu, J) =
+  \begin{bmatrix}
+    1 & -c(1+\rho^{-1}) & s(1+\rho^{-1}) & 3\rho^2 J \\[4pt]
+    0 & s & c & 2 - 3esJ \\[4pt]
+    0 & 2s & 2c - e & 3(1 - 2esJ) \\[4pt]
+    0 & s' & c' & -3e(s'J + s/\rho^2)
+  \end{bmatrix}
+  \label{eq:Phi_tilde_ip}
+\end{equation}
+
+The J-integral that appears in the fourth column is:
+\begin{equation}
+  \boxed{J = k_2(t - t_0) = \frac{h}{p^2}(t - t_0)}
+  \label{eq:J_integral}
+\end{equation}
+This is the central innovation of the Yamanaka--Ankersen formulation.
+Previous T-H solutions~\cite{Carter1998} required evaluation of the
+integral $\int_{\nu_0}^{\nu_1} \frac{d\nu}{\rho^2(\nu)}$, which has no
+simple closed form for $e \neq 0$.  The key insight is that this integral
+equals $k_2\,\Delta t$, which can be computed directly from the elapsed
+time without evaluating the integral.
+
+The out-of-plane $2\times 2$ block is a simple rotation by $\Delta\nu$:
+\begin{equation}
+  \tilde{\Phi}_{\text{oop}}(\Delta\nu) =
+  \begin{bmatrix}
+    \cos\Delta\nu & \sin\Delta\nu \\
+    -\sin\Delta\nu & \cos\Delta\nu
+  \end{bmatrix}
+  \label{eq:Phi_oop}
+\end{equation}
+
+\subsection{Full STM Assembly}
+\label{app:stm_assembly}
+
+The complete $6\times 6$ STM in physical coordinates is assembled as:
+\begin{equation}
+  \boxed{
+  \Phi(\nu_0 \to \nu_1) =
+  \mat{T}^{-1}(\nu_1)\;\tilde{\Phi}(\nu_1,J)\;
+  \tilde{\Phi}^{-1}(\nu_0, 0)\;\mat{T}(\nu_0)
+  }
+  \label{eq:full_STM}
+\end{equation}
+where $\tilde{\Phi}^{-1}(\nu_0, 0)$ is the inverse of $\tilde{\Phi}$
+evaluated at $\nu_0$ with $J = 0$.  The inverse transform is:
+\begin{equation}
+  \mat{T}^{-1}(\nu) =
+  \begin{bmatrix}
+    \frac{1}{\rho}\,\mat{I}_3 & \mat{0}_3 \\[4pt]
+    k_2 e\sin\nu\,\mat{I}_3 & k_2\rho\,\mat{I}_3
+  \end{bmatrix}
+  \label{eq:T_inv}
+\end{equation}
+
+% --- TikZ: STM block structure ---
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[
+    block/.style={draw, minimum width=1.6cm, minimum height=1.6cm,
+                  align=center, font=\footnotesize},
+    >=Stealth,
+]
+  % 6x6 grid
+  \node[block,fill=gray!15] (A) at (0,0) {In-plane\\$4\times 4$};
+  \node[block,fill=gray!5,minimum width=0.8cm] (B) at (1.45,0) {$\mat{0}$};
+  \node[block,fill=gray!5,minimum height=0.8cm] (C) at (0,-1.45) {$\mat{0}$};
+  \node[block,fill=gray!15,minimum width=0.8cm,minimum height=0.8cm] (D) at (1.45,-1.45)
+    {OOP\\$2\times 2$};
+
+  % Labels
+  \node[above=0.3cm of A,font=\small] {$x,z,\dot{x},\dot{z}$};
+  \node[above=0.3cm of B,font=\small] {$y,\dot{y}$};
+  \node[left=0.3cm of A,font=\small,rotate=90,anchor=south] {$x,z,\dot{x},\dot{z}$};
+  \node[left=0.3cm of C,font=\small,rotate=90,anchor=south] {$y,\dot{y}$};
+
+  % Overall label
+  \node[right=1.5cm of D,font=\small,align=left] (eq) {
+    $\tilde{\Phi}_{6\times 6} = \begin{bmatrix}
+    \tilde{\Phi}_{\text{ip}} & \mat{0} \\
+    \mat{0} & \tilde{\Phi}_{\text{oop}}
+    \end{bmatrix}$
+  };
+
+  % Brace
+  \draw[thick] (-1.0,1.0) rectangle (2.2,-2.2);
+\end{tikzpicture}
+\caption{Block structure of the YA-STM fundamental matrix in scaled
+coordinates. The in-plane $4\times 4$ block couples the
+along-track--radial dynamics; the out-of-plane $2\times 2$ block is
+a decoupled rotation.}
+\label{fig:stm_structure}
+\end{figure}
 
 \end{appendices}
 

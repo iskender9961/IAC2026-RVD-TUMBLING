@@ -1,0 +1,27 @@
+# MATLAB
+*.asv
+*.mex*
+*.mlappinstall
+*.slx.r*
+
+# Results (large binary files)
+results/*.mat
+results/*.gif
+results/*.mp4
+
+# Keep PNGs for documentation
+!results/*.png
+
+# OS
+Thumbs.db
+.DS_Store
+
+# LaTeX build artifacts
+docs/*.aux
+docs/*.log
+docs/*.out
+docs/*.toc
+docs/*.synctex*
+docs/*.fls
+docs/*.fdb_latexmk
+docs/*.pdf

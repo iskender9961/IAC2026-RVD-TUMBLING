@@ -1,0 +1,596 @@
+% ------------------------------------------------------------------
+%  MPC-Based Rendezvous with Tumbling Target: Body-Fixed LOS Constraints
+%  Author: Iskender O.B.
+%  Compile: pdflatex mpc_rvd_bodyfixed_los.tex
+% ------------------------------------------------------------------
+\documentclass[11pt,a4paper]{article}
+
+% ---- packages ----------------------------------------------------
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{bm}
+\usepackage{float}
+
+% ---- graphics guard: allow missing figures without error ----------
+\let\OrigIncludeGraphics\includegraphics
+\renewcommand{\includegraphics}[2][]{%
+  \IfFileExists{#2}{%
+    \OrigIncludeGraphics[#1]{#2}%
+  }{%
+    \begin{center}%
+      \fbox{\parbox{0.7\textwidth}{\centering\vspace{2cm}%
+        \textbf{[Figure placeholder]}\\[4pt]%
+        \texttt{#2} not found.%
+        \vspace{2cm}}}%
+    \end{center}%
+  }%
+}
+
+% ---- macros -------------------------------------------------------
+\newcommand{\bx}{\bm{x}}
+\newcommand{\bu}{\bm{u}}
+\newcommand{\bz}{\bm{z}}
+\newcommand{\br}{\bm{r}}
+\newcommand{\bv}{\bm{v}}
+\newcommand{\ba}{\bm{a}}
+\newcommand{\bomega}{\bm{\omega}}
+\newcommand{\bq}{\bm{q}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\norm}[1]{\left\lVert #1 \right\rVert}
+\newcommand{\cross}{\times}
+\DeclareMathOperator{\diag}{diag}
+
+% ---- document -----------------------------------------------------
+\begin{document}
+
+% ====================================================================
+\title{MPC-Based Rendezvous with Tumbling Target:\\
+       Body-Fixed LOS Constraints}
+\author{Iskender O.B.}
+\date{}
+\maketitle
+
+% ====================================================================
+\begin{abstract}
+This document describes a model-predictive-control (MPC) formulation for
+autonomous rendezvous and docking with a tumbling target spacecraft.
+The key feature is that the line-of-sight (LOS) keep-out cone constraint
+is expressed in the \emph{target body frame}, so that it naturally
+rotates with the tumbling target.  The plant propagation uses nonlinear
+ECI dynamics with $J_2$ perturbations, while the MPC prediction model
+uses a linear time-varying (LTV) discrete system re-linearised at every
+control step.  The resulting quadratic programme is solved with OSQP.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+% ====================================================================
+\section{Scenario Description}\label{sec:scenario}
+% ====================================================================
+
+\subsection{Orbit and Spacecraft}
+
+The \textbf{target} spacecraft occupies a 500\,km circular low-Earth
+orbit (LEO) with semi-major axis
+\begin{equation}\label{eq:sma}
+  a = R_E + 500\;\text{km} = 6\,878\,137\;\text{m},
+\end{equation}
+where $R_E = 6\,378\,137$\,m is the Earth equatorial radius.  The orbit
+is equatorial (inclination $i = 0^{\circ}$).
+
+The \textbf{chaser} spacecraft starts in the vicinity of the target and
+performs the final approach manoeuvre under MPC guidance.
+
+\subsection{Coordinate Frames}\label{sec:frames}
+
+Three right-handed frames are used throughout:
+
+\begin{enumerate}
+  \item \textbf{ECI} (Earth-Centred Inertial) ---
+        Standard $J2000$ frame.  All truth dynamics are propagated in
+        ECI.
+
+  \item \textbf{LVLH} (Local Vertical Local Horizontal) ---
+        Centred on the target centre of mass.  Axes:
+        \begin{align}
+          \hat{\bx}_L &= \frac{\br_{\text{tgt}}}
+                            {\norm{\br_{\text{tgt}}}}\;
+                         (\text{radial, outward}), \notag\\
+          \hat{\bz}_L &= \frac{\br_{\text{tgt}} \cross
+                                \bv_{\text{tgt}}}
+                            {\norm{\br_{\text{tgt}} \cross
+                                    \bv_{\text{tgt}}}}\;
+                         (\text{orbit normal}), \label{eq:lvlh}\\
+          \hat{\bm{y}}_L &= \hat{\bz}_L \cross \hat{\bx}_L\;
+                         (\text{along-track direction}). \notag
+        \end{align}
+        The rotation matrix $R_{\text{ECI}\leftarrow\text{LVLH}}$ has
+        columns $[\hat{\bx}_L\;\hat{\bm{y}}_L\;\hat{\bz}_L]$.
+
+  \item \textbf{Target Body (TB)} ---
+        Fixed to the target rigid body.  At $t = 0$ the TB frame is
+        aligned with LVLH\@.  For $t > 0$ the target tumbles with a
+        constant body-fixed angular velocity (see
+        Section~\ref{sec:tumble}).
+\end{enumerate}
+
+\subsection{Tumble Model}\label{sec:tumble}
+
+The target attitude is parameterised by the unit quaternion
+$\bq = [q_0,\; q_1,\; q_2,\; q_3]^T$ (scalar-first convention).  The
+body angular velocity is assumed constant:
+\begin{equation}\label{eq:omega_body}
+  \bomega_{\text{body}} = \begin{bmatrix} 0 \\ 0 \\ \omega_z \end{bmatrix}
+  \quad\text{rad/s},
+\end{equation}
+which represents a pure spin about the body $z$-axis.
+
+The quaternion kinematics are
+\begin{equation}\label{eq:qdot}
+  \dot{\bq} = \frac{1}{2}\,\Omega(\bomega_{\text{body}})\,\bq,
+  \qquad
+  \Omega(\bomega) =
+  \begin{bmatrix}
+     0        & -\omega_x & -\omega_y & -\omega_z \\
+     \omega_x &  0        &  \omega_z & -\omega_y \\
+     \omega_y & -\omega_z &  0        &  \omega_x \\
+     \omega_z &  \omega_y & -\omega_x &  0
+  \end{bmatrix}.
+\end{equation}
+With constant $\bomega_{\text{body}}$ the solution is a simple matrix
+exponential; in the simulation, however, equation~\eqref{eq:qdot} is
+integrated alongside the translational dynamics to maintain a single
+integrator state.
+
+\subsection{Docking Axis}
+
+The docking port is located on the $+\hat{\bm{y}}_T$ axis of the target
+body frame.  All line-of-sight constraints are therefore defined with
+respect to this axis (Section~\ref{sec:los}).
+
+
+% ====================================================================
+\section{Truth Dynamics (Plant Model)}\label{sec:truth}
+% ====================================================================
+
+Both the target and chaser are propagated in ECI using the same
+nonlinear equations of motion:
+\begin{equation}\label{eq:eom}
+  \dot{\br} = \bv, \qquad
+  \dot{\bv} = \ba_{2\text{b}}(\br) + \ba_{J_2}(\br) + \ba_{\text{ctrl}},
+\end{equation}
+where the control acceleration $\ba_{\text{ctrl}}$ is zero for the
+target and nonzero for the chaser.
+
+\subsection{Two-Body Acceleration}
+
+\begin{equation}\label{eq:2body}
+  \ba_{2\text{b}}(\br) = -\frac{\mu}{\norm{\br}^3}\,\br,
+\end{equation}
+with the gravitational parameter
+$\mu = 3.986 \times 10^{14}$\,m$^3$\,s$^{-2}$.
+
+\subsection{$J_2$ Perturbation}
+
+Denoting $r = \norm{\br}$ and the ECI components
+$\br = [x,\;y,\;z]^T$, the standard $J_2$ acceleration is
+\begin{equation}\label{eq:j2}
+  \ba_{J_2}(\br) =
+  -\frac{3\,\mu\,J_2\,R_E^2}{2\,r^5}
+  \begin{bmatrix}
+    x\!\left(1 - 5\,\dfrac{z^2}{r^2}\right) \\[6pt]
+    y\!\left(1 - 5\,\dfrac{z^2}{r^2}\right) \\[6pt]
+    z\!\left(3 - 5\,\dfrac{z^2}{r^2}\right)
+  \end{bmatrix},
+\end{equation}
+with $J_2 = 1.08263 \times 10^{-3}$.
+
+\subsection{Numerical Constants}
+
+For reference the three key constants are collected here:
+\begin{equation}\label{eq:constants}
+  \mu = 3.986 \times 10^{14}\;\text{m}^3/\text{s}^2, \qquad
+  R_E = 6\,378\,137\;\text{m}, \qquad
+  J_2 = 1.08263 \times 10^{-3}.
+\end{equation}
+
+\subsection{Integration}
+
+The plant model is integrated with MATLAB's \texttt{ode113}
+(variable-step Adams--Bashforth--Moulton) using tight tolerances
+($\texttt{RelTol} = 10^{-12}$, $\texttt{AbsTol} = 10^{-14}$).
+Integration proceeds one MPC control interval $\Delta t$ at a time so
+that the piece-wise-constant control input is applied exactly.
+
+
+% ====================================================================
+\section{MPC State in Target Body Frame}\label{sec:tb_state}
+% ====================================================================
+
+The MPC operates on the six-dimensional state
+\begin{equation}\label{eq:mpc_state}
+  \bx = \begin{bmatrix} \br_{\text{TB}} \\ \bv_{\text{TB}} \end{bmatrix}
+      \in \R^6,
+\end{equation}
+where $\br_{\text{TB}}$ and $\bv_{\text{TB}}$ are the relative position
+and velocity of the chaser with respect to the target, expressed in the
+target body frame.
+
+\subsection{Rotation Matrices}
+
+\paragraph{LVLH from orbit state.}
+From the target ECI position $\br_{\text{tgt}}$ and velocity
+$\bv_{\text{tgt}}$, the DCM
+\begin{equation}\label{eq:R_eci_lvlh}
+  R_{\text{ECI}\leftarrow\text{LVLH}}
+  = \bigl[\;\hat{\bx}_L \;\;\hat{\bm{y}}_L \;\;\hat{\bz}_L\;\bigr]
+\end{equation}
+is constructed as in equation~\eqref{eq:lvlh}.
+
+\paragraph{Target body from quaternion.}
+The rotation matrix corresponding to the attitude quaternion $\bq$ is
+\begin{equation}\label{eq:R_eci_tb}
+  R_{\text{ECI}\leftarrow\text{TB}} = R(\bq),
+\end{equation}
+computed via the standard quaternion-to-DCM formula (scalar-first).
+
+\subsection{Position Transformation}
+
+\begin{equation}\label{eq:r_tb}
+  \br_{\text{TB}} = R_{\text{TB}\leftarrow\text{ECI}}\,
+                     \bigl(\br_{\text{cha}} - \br_{\text{tgt}}\bigr)
+                   = R(\bq)^T
+                     \bigl(\br_{\text{cha}} - \br_{\text{tgt}}\bigr).
+\end{equation}
+
+\subsection{Velocity Transformation -- Transport Theorem}
+
+Because the TB frame rotates with angular velocity
+$\bomega_{\text{body}}$ relative to inertial space, the time derivative
+of a vector expressed in TB picks up a transport term.  The relative
+velocity in the body frame is
+\begin{equation}\label{eq:v_tb}
+  \boxed{
+  \bv_{\text{TB}} = R_{\text{TB}\leftarrow\text{ECI}}\,
+                     \bigl(\bv_{\text{cha}} - \bv_{\text{tgt}}\bigr)
+                   \;-\; \bomega_{\text{body}} \cross \br_{\text{TB}}.
+  }
+\end{equation}
+
+\paragraph{Explanation of the transport term.}
+Let $\br_{\text{rel}}^{\text{ECI}} = \br_{\text{cha}} - \br_{\text{tgt}}$
+denote the relative position in ECI\@.  Its time derivative
+\emph{as seen in the rotating TB frame} is
+\[
+  \left.\frac{d\br_{\text{rel}}}{dt}\right|_{\text{TB}}
+  = \left.\frac{d\br_{\text{rel}}}{dt}\right|_{\text{ECI}}
+    - \bomega_{\text{body}} \cross \br_{\text{rel}}^{\text{TB}}.
+\]
+Here the first term on the right is simply
+$R_{\text{TB}\leftarrow\text{ECI}}(\bv_{\text{cha}} - \bv_{\text{tgt}})$
+(the inertial relative velocity projected into TB), while the second
+term accounts for the apparent velocity induced by the frame rotation.
+Omitting this cross-product would introduce a velocity bias proportional
+to $\omega_z\,\norm{\br_{\text{TB}}}$, which grows as the chaser
+approaches from large stand-off distances.
+
+
+% ====================================================================
+\section{MPC Optimisation Problem}\label{sec:mpc}
+% ====================================================================
+
+\subsection{Decision Variables}
+
+Over a prediction horizon of $N$ steps the decision variables are
+\begin{itemize}
+  \item States:
+    $\bx_0, \bx_1, \ldots, \bx_N \in \R^6$,
+  \item Inputs:
+    $\bu_0, \bu_1, \ldots, \bu_{N-1} \in \R^3$
+    (thrust acceleration in the TB frame).
+\end{itemize}
+
+\subsection{Cost Function}
+
+\begin{equation}\label{eq:cost}
+  J = \sum_{k=0}^{N-1}
+      \Bigl[
+        (\bx_k - \bx_{\text{ref},k})^T Q\,(\bx_k - \bx_{\text{ref},k})
+        + \bu_k^T R_u\,\bu_k
+        + \Delta\bu_k^T R_{\Delta u}\,\Delta\bu_k
+      \Bigr]
+      + (\bx_N - \bx_{\text{ref},N})^T Q_N\,(\bx_N - \bx_{\text{ref},N}),
+\end{equation}
+where the input increment is
+\begin{equation}\label{eq:du}
+  \Delta\bu_k = \bu_k - \bu_{k-1}, \qquad
+  \bu_{-1} \triangleq \bu_{\text{prev}}
+\end{equation}
+(the last applied input from the previous MPC solve).
+
+The weighting matrices are:
+\begin{itemize}
+  \item $Q \in \R^{6\times6}$ --- stage state cost (positive
+        semi-definite),
+  \item $Q_N \in \R^{6\times6}$ --- terminal state cost (positive
+        semi-definite),
+  \item $R_u \in \R^{3\times3}$ --- input magnitude cost (positive
+        definite),
+  \item $R_{\Delta u} \in \R^{3\times3}$ --- input-rate cost (positive
+        definite), penalising thruster cycling.
+\end{itemize}
+
+\subsection{Dynamics Constraint (LTV)}\label{sec:ltv}
+
+At each MPC call the nonlinear dynamics
+$\bx^{+} = f(\bx, \bu)$
+are linearised about the current state $\bar{\bx}$ and zero input via
+\emph{finite differences} to obtain
+\begin{equation}\label{eq:dynamics}
+  \bx_{k+1} = A_d\,\bx_k + B_d\,\bu_k,
+  \qquad k = 0,\ldots,N-1,
+\end{equation}
+where $A_d \in \R^{6\times6}$ and $B_d \in \R^{6\times3}$ are the
+discrete-time Jacobians valid for one control interval.  The
+linearisation is updated (\emph{re-linearised}) at every outer MPC
+step, making the prediction model \emph{linear time-varying}.
+
+\subsection{Input Bounds}
+
+Element-wise box constraints on the thrust acceleration:
+\begin{equation}\label{eq:ubox}
+  -u_{\max}\,\bm{1}_3 \;\le\; \bu_k \;\le\; u_{\max}\,\bm{1}_3,
+  \qquad k = 0,\ldots,N-1.
+\end{equation}
+
+\subsection{Body-Fixed LOS Cone Constraint}\label{sec:los}
+
+The docking corridor is a cone about the $+\hat{\bm{y}}_T$ axis with
+half-angle $\alpha$.  In the TB frame the chaser position is
+$\br_{\text{TB}} = [x_T,\; y_T,\; z_T]^T$.  The exact second-order
+cone constraint is
+\begin{equation}\label{eq:soc}
+  \sqrt{x_T^2 + z_T^2} \;\le\; \tan(\alpha)\;y_T,
+  \qquad y_T \ge y_{\min},
+\end{equation}
+which ensures the chaser lies inside the cone and ahead of the minimum
+distance plane.
+
+\paragraph{Polyhedral approximation.}
+To keep the problem as a QP (rather than SOCP), the cone is
+approximated by $m$ half-planes.  Define
+\begin{equation}\label{eq:theta_i}
+  \theta_i = \frac{2\pi\,(i-1)}{m}, \qquad i = 1,\ldots,m,
+  \qquad k = \tan(\alpha).
+\end{equation}
+Then the polyhedral inner approximation of~\eqref{eq:soc} is
+\begin{equation}\label{eq:poly_cone}
+  \boxed{
+  \cos\theta_i\;x_T + \sin\theta_i\;z_T \;\le\; k\;y_T,
+  \qquad i = 1,\ldots,m,}
+\end{equation}
+together with
+\begin{equation}\label{eq:ymin}
+  y_T \;\ge\; y_{\min}.
+\end{equation}
+Each inequality is linear in $\bx_k$, so it enters the QP as a standard
+row of the constraint matrix.
+
+\paragraph{Key advantage.}
+Because the state $\bx$ is already expressed in the target body frame,
+the cone constraint~\eqref{eq:poly_cone} is \emph{time-invariant} in
+the MPC formulation.  The cone ``automatically'' rotates with the
+tumbling target; no explicit rotation of the constraint normals is
+needed at each prediction step.
+
+\subsection{Reference Trajectory}\label{sec:ref}
+
+The reference state $\bx_{\text{ref},k}$ places the chaser on the
+$+\hat{\bm{y}}_T$ axis at a decaying stand-off distance:
+\begin{equation}\label{eq:ref}
+  \br_{\text{ref}}(t_k) = \begin{bmatrix} 0 \\ d(t_k) \\ 0 \end{bmatrix},
+  \qquad
+  d(t_k) = d_{\infty} + (d_0 - d_{\infty})\,e^{-\lambda\,t_k},
+  \qquad
+  \bv_{\text{ref}}(t_k) = \begin{bmatrix} 0 \\ \dot{d}(t_k) \\ 0 \end{bmatrix},
+\end{equation}
+where $d_0$ is the initial stand-off, $d_{\infty}$ the terminal
+(docking) distance, and $\lambda > 0$ the decay rate.
+
+
+% ====================================================================
+\section{OSQP QP Implementation}\label{sec:osqp}
+% ====================================================================
+
+The MPC~\eqref{eq:cost}--\eqref{eq:ymin} is cast into the canonical
+OSQP form
+\begin{equation}\label{eq:qp}
+  \min_{\bz}\;\frac{1}{2}\,\bz^T P\,\bz + \bm{q}^T\bz
+  \qquad\text{subject to}\qquad
+  \bm{l} \;\le\; A_{\text{qp}}\,\bz \;\le\; \bm{u},
+\end{equation}
+with the stacked decision vector
+\begin{equation}\label{eq:zvec}
+  \bz = \begin{bmatrix}
+    \bx_0 \\ \bx_1 \\ \vdots \\ \bx_N \\
+    \bu_0 \\ \bu_1 \\ \vdots \\ \bu_{N-1}
+  \end{bmatrix}
+  \;\in\;\R^{6(N+1)+3N}.
+\end{equation}
+
+\subsection{Cost Matrix $P$}
+
+The Hessian is block-diagonal (up to the $\Delta u$ cross-terms):
+\begin{equation}\label{eq:P}
+  P = \diag\!\bigl(\underbrace{Q,\ldots,Q}_{N},\;Q_N,\;
+              \underbrace{\tilde{R},\ldots,\tilde{R}}_{N}\bigr)
+      + P_{\Delta u},
+\end{equation}
+where $\tilde{R} = R_u + 2\,R_{\Delta u}$ on the diagonal blocks and
+$P_{\Delta u}$ adds the off-diagonal $-R_{\Delta u}$ coupling between
+consecutive $\bu_k$ blocks.  The linear term $\bm{q}$ absorbs the
+reference offsets ($-2\,Q\,\bx_{\text{ref},k}$, etc.) and the
+$\bu_{\text{prev}}$ contribution from $\Delta\bu_0$.
+
+\subsection{Constraint Matrix $A_{\text{qp}}$}
+
+The constraint matrix is assembled row-by-row from three groups:
+
+\begin{enumerate}
+  \item \textbf{Dynamics equalities} ($6N$ rows). \\
+    For $k = 0,\ldots,N-1$:
+    \[
+      A_d\,\bx_k + B_d\,\bu_k - \bx_{k+1} = \bm{0}.
+    \]
+    Encoded as $l_i = u_i = 0$ (equality).
+
+  \item \textbf{Input box constraints} ($6N$ rows: 3 lower + 3 upper per step). \\
+    $-u_{\max} \le [\bu_k]_j \le u_{\max}$, $j = 1,2,3$, for each $k$.
+
+  \item \textbf{LOS polyhedral constraints} ($m \cdot (N+1) + (N+1)$ rows). \\
+    For every prediction step $k$ and every facet $i$:
+    \[
+      \cos\theta_i\;[\bx_k]_1 + \sin\theta_i\;[\bx_k]_3
+        - k\;[\bx_k]_2 \;\le\; 0,
+    \]
+    plus $[\bx_k]_2 \ge y_{\min}$.
+\end{enumerate}
+
+\subsection{Warm-Starting and Sparsity}
+
+The OSQP solver object is created once and stored persistently across
+MPC steps.  At each step only the entries that change are updated:
+\begin{itemize}
+  \item $\bm{q}$ (linear cost, depends on the current reference and
+        $\bu_{\text{prev}}$),
+  \item Non-zero entries of $A_{\text{qp}}$ (the $A_d$, $B_d$ blocks
+        change when re-linearised),
+  \item Bound vectors $\bm{l}$, $\bm{u}$ (if $y_{\min}$ or $u_{\max}$
+        are scheduled).
+\end{itemize}
+All matrices ($P$, $A_{\text{qp}}$) are stored in compressed sparse
+column (CSC) format, which OSQP requires.  Warm-starting the primal and
+dual variables from the previous solution typically halves the iteration
+count.
+
+
+% ====================================================================
+\section{Verification}\label{sec:verification}
+% ====================================================================
+
+A suite of unit-level and integration-level tests is executed before
+every simulation campaign.
+
+\subsection{Test 1: $J_2$ Magnitude Sanity}
+
+At the reference orbit altitude the ratio of $J_2$ to two-body
+acceleration should be of order $10^{-3}$:
+\begin{equation}
+  \frac{\norm{\ba_{J_2}}}{\norm{\ba_{2\text{b}}}}
+  \approx \frac{3}{2}\,J_2\,\frac{R_E^2}{r^2}
+  \approx 1.1 \times 10^{-3}.
+\end{equation}
+The test asserts that the computed ratio lies in
+$[5\times10^{-4},\;5\times10^{-3}]$.
+
+\subsection{Test 2: TB Equals LVLH at $t = 0$}
+
+At the initial epoch the attitude quaternion is set to the identity
+($\bq_0 = [1,\;0,\;0,\;0]^T$), so the body frame coincides with LVLH\@.
+The test checks
+\begin{equation}
+  \norm{R_{\text{ECI}\leftarrow\text{TB}}(t_0)
+       - R_{\text{ECI}\leftarrow\text{LVLH}}(t_0)}_F
+  < \epsilon,
+\end{equation}
+with $\epsilon = 10^{-12}$.
+
+\subsection{Test 3: On-Axis Feasibility}
+
+A point on the docking axis $\br_{\text{TB}} = [0,\;y,\;0]^T$ with
+$y > y_{\min}$ must satisfy \emph{all} $m$ facets of the polyhedral
+cone~\eqref{eq:poly_cone}:
+\[
+  \cos\theta_i \cdot 0 + \sin\theta_i \cdot 0
+  = 0 \;\le\; k\,y.
+\]
+Since $k = \tan\alpha > 0$ and $y > 0$ the inequality is trivially
+satisfied.  The test confirms OSQP returns a feasible solution for a
+single-step problem with $\bx_0$ on the axis.
+
+\subsection{Test 4: Tiny Cone Infeasibility}
+
+When the half-angle is set to an extremely small value
+($\alpha = 0.01^{\circ}$) and the chaser starts off-axis, the
+polyhedral constraints become so tight that no feasible trajectory
+exists within the thrust budget.  The test asserts that OSQP returns
+status \texttt{primal\_infeasible} (or dual infeasible, depending on
+the formulation).
+
+\subsection{Test 5: Cone Rotates with Target Body}
+
+Two snapshots of the constraint normals are compared:
+\begin{enumerate}
+  \item At $t = 0$ (TB aligned with LVLH), the cone axis in LVLH is
+        $+\hat{\bm{y}}_L$.
+  \item After a quarter-revolution of the tumble ($t = \pi/(2\omega_z)$),
+        the cone axis in LVLH has rotated by $90^{\circ}$ about
+        $\hat{\bz}_L$.
+\end{enumerate}
+Since the MPC state is in TB, the constraint rows do \emph{not} change;
+only the state mapping does.  The test verifies that a point that was
+inside the cone at $t = 0$ (expressed in LVLH) is \emph{outside} at
+$t = \pi/(2\omega_z)$ when the same LVLH coordinates are transformed to
+TB\@.
+
+
+% ====================================================================
+\section{Simulation Results}\label{sec:results}
+% ====================================================================
+
+\subsection{3D Approach Trajectory}
+
+Figure~\ref{fig:3d} shows the chaser trajectory in the target body
+frame together with the LOS cone and the three coordinate frames (ECI,
+LVLH, TB).
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.8\textwidth]{fig_3d_approach.png}
+  \caption{Three-dimensional approach trajectory in the target body frame.
+           The translucent cone represents the polyhedral LOS constraint;
+           the chaser path (blue) remains inside the cone throughout the
+           manoeuvre.  Coordinate triads for ECI (red), LVLH (green), and
+           TB (cyan) are shown at selected epochs.}
+  \label{fig:3d}
+\end{figure}
+
+\subsection{Time Histories}
+
+Figure~\ref{fig:time} presents the time evolution of the along-docking-axis
+distance $y_T$, the radial deviation $\sqrt{x_T^2 + z_T^2}$, and the
+control acceleration magnitude $\norm{\bu}$.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.8\textwidth]{fig_time_histories.png}
+  \caption{Time histories.  \textbf{Top:} distance along the docking
+           axis ($y_T$), showing the exponential decay towards the
+           terminal hold point.  \textbf{Middle:} radial deviation from
+           the docking axis, bounded by the cone constraint.
+           \textbf{Bottom:} thrust acceleration magnitude, remaining
+           within the saturation limit $u_{\max}$ at all times.}
+  \label{fig:time}
+\end{figure}
+
+
+% ====================================================================
+\section*{Acknowledgements}
+% ====================================================================
+This work uses the OSQP solver (Stellato et al., 2020, \textit{Mathematical Programming Computation}, 12(4), 637--672) for the embedded quadratic programme.
+
+\end{document}

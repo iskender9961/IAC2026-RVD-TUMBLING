@@ -26,8 +26,13 @@ function p = params()
     p.omega_body = [0; 0; 0.015];  % 0.86 deg/s about body-z [rad/s]
 
     %% ---- Simulation timing ----
-    p.Tsim = 400;               % total simulation time [s]
+    p.Tsim = 600;               % total simulation time [s]
     p.dt   = 1.0;               % control step [s]
+
+    %% ---- Docking termination conditions ----
+    p.dock_y_thresh  = 5.0;     % y_T distance threshold [m]
+    p.dock_rad_thresh = 1.0;    % radial deviation threshold [m]
+    p.dock_v_thresh  = 0.05;    % velocity magnitude threshold [m/s]
 
     %% ---- MPC parameters ----
     p.Np   = 40;                % prediction horizon (steps)
@@ -37,13 +42,13 @@ function p = params()
 
     % Cost weights  --  TUNING RATIONALE:
     %   Heavy Q on x_TB, z_TB drives chaser onto docking axis.
-    %   Light Q on y_TB lets reference set approach rate.
+    %   Heavy Q on y_TB penalises approach distance error.
     %   Moderate velocity penalty damps oscillation.
-    %   Rdu moderate: allows maneuver without chatter.
+    %   Rdu high: smooth thruster commands (varied in comparison study).
     %   Ru tiny: numerical conditioning only.
-    p.Q  = diag([15, 1, 15, 1, 1, 1]);     % stage state
+    p.Q  = diag([15, 30, 15, 1, 1, 1]);    % stage state (y=30)
     p.QN = 30 * p.Q;                        % terminal
-    p.Rdu = 3e2 * eye(3);                   % delta-u (smoothness)
+    p.Rdu = 1e4 * eye(3);                   % delta-u (smoothness) -- baseline
     p.Ru  = 1e-2 * eye(3);                  % regularization
 
     %% ---- Reference / approach strategy ----

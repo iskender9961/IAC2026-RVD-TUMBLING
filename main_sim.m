@@ -216,6 +216,36 @@ for k = 1:Nsteps
     % ---- Docking axis in LVLH ----
     dock_axis_lvlh = R_eci_lvlh' * R_eci_tb(:,2);
 
+    % ---- Check docking conditions ----
+    rad_dev_now = sqrt(r_tb(1)^2 + r_tb(3)^2);
+    v_mag_now   = norm(v_tb);
+    if r_tb(2) <= p.dock_y_thresh && ...
+       rad_dev_now <= p.dock_rad_thresh && ...
+       v_mag_now <= p.dock_v_thresh
+        fprintf('[DOCKED] Docking conditions met at t=%.1f s\n', k*p.dt);
+        fprintf('  y_T=%.2f m, rad_dev=%.2f m, |v|=%.4f m/s\n', ...
+            r_tb(2), rad_dev_now, v_mag_now);
+        final_step = k;
+        sim_terminated = true;
+        % Log this last step
+        lg.r_tb_hist(:, k+1)         = r_tb;
+        lg.v_tb_hist(:, k+1)         = v_tb;
+        lg.r_lvlh_hist(:, k+1)       = r_lvlh;
+        lg.v_lvlh_hist(:, k+1)       = v_lvlh;
+        lg.r_cb_hist(:, k+1)         = r_tb;
+        lg.v_cb_hist(:, k+1)         = v_tb;
+        lg.r_tgt_eci_hist(:, k+1)    = r_tgt_eci;
+        lg.v_tgt_eci_hist(:, k+1)    = v_tgt_eci;
+        lg.r_chs_eci_hist(:, k+1)    = r_chs_eci;
+        lg.v_chs_eci_hist(:, k+1)    = v_chs_eci;
+        lg.R_eci_tb_hist(:,:,k+1)    = R_eci_tb;
+        lg.R_eci_lvlh_hist(:,:,k+1)  = R_eci_lvlh;
+        lg.dock_axis_lvlh_hist(:,k+1) = dock_axis_lvlh;
+        lg.t_hist(k+1)               = k * p.dt;
+        lg.ref_hist(:, k+1)          = compute_reference(k*p.dt, p);
+        break;
+    end
+
     % ---- Store for delta-u ----
     u_prev = u_applied;
 

@@ -275,12 +275,12 @@ function plot_mc_heatmap_ax(ax, mc, with_legend)
         h2 = fill(ax, NaN, NaN, blue_col,  'EdgeColor', 'none');
         h3 = fill(ax, NaN, NaN, red_col,   'EdgeColor', 'none');
         legend(ax, [h1 h2 h3], {'All-time feasible', 'Fails after start', 'Outside LOS'}, ...
-            'Location', 'northeast', 'FontSize', 9);
+            'Location', 'southeast', 'FontSize', 9);
     end
 
     xlabel(ax, 'x_{TB} [m]', 'FontSize', 10);
     ylabel(ax, 'y_{TB} [m]', 'FontSize', 10);
-    title(ax, sprintf('\\omega_{tgt}=%d,  a_{max}=%.2f  (%d/%d)', ...
+    title(ax, sprintf('\\omega_{tgt}=%d deg/s,  a_{max}=%.2f m/s^2  (%d/%d)', ...
         omega_deg, amax, sum(outcomes), n_mc), 'FontSize', 10);
     set(ax, 'FontSize', 9);
     xlim(ax, [-200 200]);

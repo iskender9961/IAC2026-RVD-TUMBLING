@@ -20,7 +20,7 @@
 
 \abstract{
 This paper presents a reachability-aware guidance architecture for autonomous approach to a tumbling, uncooperative target under a rotating line-of-sight (LOS) docking corridor.
-A four-level certified feasibility hierarchy---robust, stochastic, nominal, and empirical Monte Carlo---rigorously characterises the safe-start region under progressively relaxed assumptions, satisfying $\mathcal{X}_{\mathrm{rob}} \subseteq \mathcal{X}_{\mathrm{stoch}} \subseteq \mathcal{X}_{\mathrm{nom}} \subseteq \mathcal{X}_{\mathrm{MC}}$ by construction.
+Three nested analytical safe-start sets---robust, stochastic, and nominal---satisfy $\mathcal{X}_{\mathrm{rob}} \subseteq \mathcal{X}_{\mathrm{stoch}} \subseteq \mathcal{X}_{\mathrm{nom}}$ by construction, while an independent Monte~Carlo campaign provides empirical closed-loop validation.
 Closed-loop guidance couples a receding-horizon quadratic-program (QP) controller---with state-tracking, input-rate, and terminal penalties---to nonlinear two-body-plus-$J_2$ truth dynamics, ensuring physically honest feasibility claims.
 Parametric sweeps over tumble rates 1--5~deg/s and thrust authorities 0.02--0.20~m/s$^2$ on a $300\!\times\!300$ evaluation grid identify $a_{\max}/\omega_t^2$ as the single dimensionless parameter governing approach feasibility, confirm the predicted hierarchy across all 20 parameter combinations with zero point-wise violations, and show that analytical certification completes in 53~s versus 2--4~hours for Monte~Carlo ($\sim$200$\times$ speedup), enabling on-board mission replanning.
 }
@@ -60,7 +60,7 @@ The central question motivating this work is: \emph{from which initial states ca
 
 \textbf{Contributions.}  This paper makes four contributions:
 \begin{enumerate}
-\item \textbf{Hierarchical feasibility certification}: four nested safe-start regions satisfying $\mathcal{X}_{\mathrm{rob}} \subseteq \mathcal{X}_{\mathrm{stoch}} \subseteq \mathcal{X}_{\mathrm{nom}} \subseteq \mathcal{X}_{\mathrm{MC}}$ by construction.
+\item \textbf{Hierarchical feasibility certification}: three nested analytical safe-start regions satisfying $\mathcal{X}_{\mathrm{rob}} \subseteq \mathcal{X}_{\mathrm{stoch}} \subseteq \mathcal{X}_{\mathrm{nom}}$ by construction, with an independent empirical Monte~Carlo set for closed-loop validation.
 
 \item \textbf{Directional per-constraint erosion with synchronisation bound}: a closed-form inner approximation using the constraint-slack rate and $r_{\mathrm{sync}} = 2a_{\max}/\omega_t^2$.
 
@@ -190,8 +190,12 @@ The relative state in $\mathcal{F}_B$ is:
 where the transport term in~\eqref{eq:vel_transform} requires co-rotation velocity $v_{\mathrm{corot}} = \omega_t r$ at range $r$.  This ensures that a body-frame--stationary chaser maintains the correct co-rotation in the inertial frame.
 
 \subsection{Online MPC Linearisation}
+\label{sec:linearise}
 
-The MPC matrices are recomputed at each step via forward finite differences ($\epsilon = 10^{-6}$) applied to the full nonlinear pipeline: ECI recovery $\to$ numerical integration $\to$ attitude update $\to$ body-frame projection~\eqref{eq:pos_transform}--\eqref{eq:vel_transform}.  This captures $J_2$ and Coriolis effects that a frozen CWH model would miss.
+At every control step $k$, the MPC prediction matrices $(A_{d,k}, B_{d,k})$ are recomputed via forward finite differences ($\epsilon = 10^{-6}$) through the full nonlinear pipeline: body-frame recovery $\to$ ECI propagation (\texttt{ode113}, two-body$+J_2$) $\to$ attitude update $\to$ body-frame projection~\eqref{eq:pos_transform}--\eqref{eq:vel_transform}.  Each column requires one nonlinear propagation ($1 + n_x + n_u = 10$ per step), capturing $J_2$ secular drift and Coriolis coupling that a frozen CWH model would miss.
+
+\paragraph{Model usage distinction.}
+The CWH STM $\Phi(\tau)$ is used exclusively for \emph{offline} reachability analysis (Section~\ref{sec:reachability}); all \emph{online} MPC predictions use the finite-difference linearisation.
 
 
 %%=========================================================================
@@ -239,20 +243,14 @@ Two MPC configurations are used.  For single-scenario analysis: $N_p = 40$, $R_{
 \label{sec:guidance}
 %%=========================================================================
 
-The controller operates in three regimes based on range $r = \|\mathbf{r}_B\|$ relative to $r_{\mathrm{sync}} = 2a_{\max}/\omega_t^2$:
-
+The guidance system is a single receding-horizon MPC controller operating in the target-body frame at every control step~$k$:
 \begin{enumerate}
-\item \textbf{Far approach} ($r > r_{\mathrm{sync}}$): LVLH-frame PD tracking of a spiral reference with velocity limiting, capped at $v_{\mathrm{achv}} = \min(a_{\max} t / 2, v_{\max})$.
-
-\item \textbf{Close approach} ($r \le r_{\mathrm{sync}}$): body-frame PD tracking with the reference transformed to $\mathcal{F}_B$ coordinates, naturally maintaining co-rotation.
-
-\item \textbf{Hold} ($r_h - \epsilon \le r \le r_h + \epsilon$, $v < v_{\mathrm{switch}}$): station-keeping with CWH gravity-gradient feedforward:
-\begin{equation}
-\mathbf{a}_{\mathrm{ff}} = -\begin{bmatrix} 3n^2 x + 2n\dot{y} \\ -2n\dot{x} \\ -n^2 z \end{bmatrix}.
-\end{equation}
+\item \textbf{Linearise.} Finite-difference Jacobians $(A_{d,k}, B_{d,k})$ are computed about the current state and input via the nonlinear propagation pipeline.
+\item \textbf{Build and solve QP.} The cost~\eqref{eq:cost} with dynamics, LOS, and input-bound constraints is assembled and solved by OSQP~\cite{Stellato2020}.
+\item \textbf{Apply.} Only $\mathbf{u}_0^*$ is applied after clamping to $[-a_{\max}, a_{\max}]$ per axis (receding horizon).
+\item \textbf{Propagate.} The nonlinear truth model advances both spacecraft in ECI; the relative state is re-projected into $\mathcal{F}_B$.
 \end{enumerate}
-
-The nominal PD command is refined through the QP-based MPC safety filter~\eqref{eq:mpc}; only $\mathbf{u}_0^*$ is applied (receding horizon).
+The reference trajectory is an exponential approach along the docking axis: $y_{\mathrm{ref}}(t) = y_{\mathrm{end}} + (y_0 - y_{\mathrm{end}})e^{-t/\tau}$.  No separate PD controller or regime switching is used.
 
 
 %%=========================================================================
@@ -398,7 +396,7 @@ The forward--backward gap quantifies single-step braking pessimism.  Optimal mul
 
 A reachability-aware guidance architecture has been developed for approach to a tumbling target under a rotating LOS docking corridor.  The main findings are:
 \begin{enumerate}
-\item $\mathcal{X}_{\mathrm{rob}} \subseteq \mathcal{X}_{\mathrm{stoch}} \subseteq \mathcal{X}_{\mathrm{nom}} \subseteq \mathcal{X}_{\mathrm{MC}}$ verified across all 20 combinations with zero point-wise violations.
+\item The analytical hierarchy $\mathcal{X}_{\mathrm{rob}} \subseteq \mathcal{X}_{\mathrm{stoch}} \subseteq \mathcal{X}_{\mathrm{nom}}$ verified across all 20 combinations with zero point-wise violations.  The independent Monte~Carlo set $\mathcal{X}_{\mathrm{MC}}$ validates the analytical predictions.
 \item $a_{\max}/\omega_t^2$ is the universal scaling parameter for rotating-corridor feasibility.
 \item Analytical certification: 53~s vs.\ 2--4~h MC ($\sim$200$\times$ speedup), enabling on-board replanning.
 \item Nonlinear truth propagation reveals double-integrator artefacts (up to 80\% phantom $\Delta v$).

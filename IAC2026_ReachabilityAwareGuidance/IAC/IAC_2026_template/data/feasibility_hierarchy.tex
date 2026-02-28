@@ -1,30 +1,30 @@
 \subsection{Hierarchy of Certified Feasibility Sets}
 \label{sec:hierarchy}
 
-We distinguish four feasibility regions, ordered by increasing conservatism:
+We distinguish three analytical feasibility regions, ordered by increasing conservatism, plus an independent empirical validation set:
 
 \begin{enumerate}
-\item \textbf{Empirical Monte Carlo safe region} $\mathcal{X}_{\mathrm{MC}}$: the set of initial positions from which full closed-loop simulation (with nonlinear ECI truth dynamics and the MPC controller) successfully completes the approach without LOS violation. This is the least conservative but provides no formal guarantees.
-
-\item \textbf{Nominal deterministic certified region} $\mathcal{X}_{\mathrm{nom}}$: the analytically computed inner approximation assuming perfect model knowledge and no process disturbance. Uses the directional per-constraint erosion~\eqref{eq:erosion} and synchronization range bound~\eqref{eq:rsync} to certify that the controller can maintain all LOS constraints.
+\item \textbf{Nominal deterministic certified region} $\mathcal{X}_{\mathrm{nom}}$: the analytically computed inner approximation assuming perfect model knowledge and no process disturbance. Uses the directional per-constraint erosion~\eqref{eq:erosion} and synchronization range bound~\eqref{eq:rsync} to certify open-loop feasibility.
 
 \item \textbf{Stochastic chance-constrained certified region} $\mathcal{X}_{\mathrm{stoch}}$: tightens each constraint by the quantile $\Phi^{-1}(1-\alpha/n_c) \cdot \sigma_i$ of the accumulated Gaussian process noise, guaranteeing constraint satisfaction with probability $\geq 1-\alpha$. With $\alpha=0.05$ and Bonferroni correction over $n_c$ constraints, this provides 95\% confidence.
 
 \item \textbf{Robust bounded-disturbance certified region} $\mathcal{X}_{\mathrm{rob}}$: tightens each constraint by the worst-case accumulated disturbance support function $\sum_{j=0}^{N-1} \max_{\mathbf{w}\in\mathcal{W}} \mathbf{a}_i^\top A^j \mathbf{w}$, guaranteeing feasibility for \emph{all} disturbance realizations $\mathbf{w}_k \in \mathcal{W}$ over the analysis horizon.
+
+\item \textbf{Empirical Monte Carlo set} $\mathcal{X}_{\mathrm{MC}}$: the set of initial positions from which full closed-loop simulation (with nonlinear ECI truth dynamics and the MPC controller) successfully completes the approach without LOS violation.  $\mathcal{X}_{\mathrm{MC}}$ is \emph{not} analytically nested with the three sets above; it serves as an independent empirical benchmark.
 \end{enumerate}
 
-By construction, these sets satisfy the inclusion relation:
+By construction, the analytical sets satisfy the inclusion relation:
 \begin{equation}
-\mathcal{X}_{\mathrm{rob}} \subseteq \mathcal{X}_{\mathrm{stoch}} \subseteq \mathcal{X}_{\mathrm{nom}} \subseteq \mathcal{X}_{\mathrm{MC}}.
+\mathcal{X}_{\mathrm{rob}} \subseteq \mathcal{X}_{\mathrm{stoch}} \subseteq \mathcal{X}_{\mathrm{nom}}.
 \label{eq:hierarchy}
 \end{equation}
 
-This nesting reflects increasing conservatism and decreasing modeling assumptions:
+This nesting reflects increasing conservatism:
 \begin{itemize}
 \item \emph{Nominal} assumes perfect model fidelity and zero disturbance.
 \item \emph{Stochastic} guarantees constraint satisfaction with probability $\geq 1-\alpha$ under Gaussian process noise.
 \item \emph{Robust} guarantees constraint satisfaction for \emph{all} bounded disturbances in a compact set $\mathcal{W}$.
-\item \emph{Monte Carlo} estimates empirical feasibility through exhaustive simulation; it is the most permissive but carries no analytic certification.
+\item \emph{Monte Carlo} estimates empirical closed-loop feasibility; it may be smaller or larger than the nominal set because the MPC controller may fail where open-loop analysis succeeds.
 \end{itemize}
 
 The analytical regions ($\mathcal{X}_{\mathrm{nom}}$, $\mathcal{X}_{\mathrm{stoch}}$, $\mathcal{X}_{\mathrm{rob}}$) are computed via the erosion model~\eqref{eq:erosion} with additional constraint tightening:
@@ -34,4 +34,4 @@ s_i(\mathbf{x}) - \delta_i^{\mathrm{nom}} - \Delta_i^{\mathrm{noise}} > 0, \quad
 \end{equation}
 where $\delta_i^{\mathrm{nom}}$ is the nominal directional erosion from~\eqref{eq:erosion} and $\Delta_i^{\mathrm{noise}}$ is the method-specific tightening (zero for nominal, $z_{1-\alpha/n_c} \sigma_i$ for stochastic, $\sum_j h_{\mathcal{W}}(\mathbf{a}_i^\top A^j)$ for robust).
 
-Fig.~\ref{fig:hierarchy} illustrates the nested structure for representative cases. The progressive shrinkage from $\mathcal{X}_{\mathrm{MC}}$ to $\mathcal{X}_{\mathrm{rob}}$ quantifies the ``price of certification'' --- the reduction in operational region required for formal safety guarantees under increasingly stringent assumptions.
+Fig.~\ref{fig:hierarchy} illustrates the nested structure for representative cases. The progressive shrinkage from $\mathcal{X}_{\mathrm{nom}}$ to $\mathcal{X}_{\mathrm{rob}}$ quantifies the ``price of certification'' --- the reduction in operational region required for formal safety guarantees under increasingly stringent assumptions.

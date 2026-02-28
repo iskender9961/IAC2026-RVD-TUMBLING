@@ -3,8 +3,8 @@
 \usepackage{amsmath,amssymb,bm}
 \usepackage{graphicx}
 \usepackage{booktabs}
-\usepackage{hyperref}
-\usepackage{lineno}
+%\usepackage{hyperref}  % Disabled: causes TeX capacity overflow with many H-floats
+%\usepackage{lineno}
 \usepackage{float}
 \usepackage{multirow}
 \usepackage[titletoc]{appendix}
@@ -27,7 +27,7 @@
   city={Singapore}, country={Singapore}}
 
 \begin{abstract}
-Autonomous proximity operations with tumbling, uncooperative spacecraft require guidance systems that can certify the feasibility of approach trajectories before execution.  When the target tumbles, its body-fixed docking corridor rotates in the chaser's coordinate frame, producing time-varying polyhedral constraints whose feasibility depends critically on the interplay between tumble rate and thrust authority.  This paper develops a hierarchical reachability framework that partitions the approach region into four nested sets with progressively stronger safety guarantees: (i)~an empirical Monte~Carlo set $\mathcal{X}_{\mathrm{MC}}$, (ii)~a nominal erosion-based set $\mathcal{X}_{\mathrm{nom}}$, (iii)~a stochastic chance-constrained set $\mathcal{X}_{\mathrm{stoch}}$ at 95\% confidence, and (iv)~a robust worst-case set $\mathcal{X}_{\mathrm{rob}}$ for bounded disturbances, satisfying $\mathcal{X}_{\mathrm{rob}} \subseteq \mathcal{X}_{\mathrm{stoch}} \subseteq \mathcal{X}_{\mathrm{nom}} \subseteq \mathcal{X}_{\mathrm{MC}}$ by construction.  Closed-loop simulations couple a receding-horizon quadratic-program (QP) controller---with state-tracking, input-rate, and terminal penalties---to nonlinear two-body-plus-$J_2$ truth dynamics, ensuring physically honest feasibility claims.  A parametric sweep over tumble rates 1--5~deg/s and thrust authorities 0.02--0.20~m/s$^2$ on a $300\!\times\!300$ evaluation grid (i)~identifies $a_{\max}/\omega_t^2$ as the single dimensionless parameter governing approach feasibility, (ii)~confirms the predicted hierarchy across all 20 parameter combinations with zero point-wise violations, and (iii)~shows that analytical certification completes in 53~s versus 2--4~hours for Monte~Carlo, enabling on-board mission replanning.
+Autonomous proximity operations with tumbling, uncooperative spacecraft require guidance systems that can certify the feasibility of approach trajectories before execution.  When the target tumbles, its body-fixed docking corridor rotates in the chaser's coordinate frame, producing time-varying polyhedral constraints whose feasibility depends critically on the interplay between tumble rate and thrust authority.  This paper develops a hierarchical reachability framework that computes three nested analytical safe-start sets with progressively stronger guarantees---nominal ($\mathcal{X}_{\mathrm{nom}}$), stochastic ($\mathcal{X}_{\mathrm{stoch}}$, 95\% confidence), and robust ($\mathcal{X}_{\mathrm{rob}}$, bounded disturbances)---satisfying $\mathcal{X}_{\mathrm{rob}} \subseteq \mathcal{X}_{\mathrm{stoch}} \subseteq \mathcal{X}_{\mathrm{nom}}$ by construction.  An independent Monte~Carlo campaign ($\mathcal{X}_{\mathrm{MC}}$) provides empirical closed-loop validation under nonlinear two-body-plus-$J_2$ truth dynamics coupled to a receding-horizon quadratic-program (QP) controller with state-tracking, input-rate, and terminal penalties.  A parametric sweep over tumble rates 1--5~deg/s and thrust authorities 0.02--0.20~m/s$^2$ on a $300\!\times\!300$ evaluation grid (i)~identifies $a_{\max}/\omega_t^2$ as the single dimensionless parameter governing approach feasibility, (ii)~confirms the analytical hierarchy $\mathcal{X}_{\mathrm{rob}} \subseteq \mathcal{X}_{\mathrm{stoch}} \subseteq \mathcal{X}_{\mathrm{nom}}$ across all 20 parameter combinations with zero point-wise violations, and (iii)~shows that analytical certification completes in 53~s versus 2--4~hours for Monte~Carlo, enabling on-board mission replanning.
 \end{abstract}
 
 \begin{keyword}
@@ -36,7 +36,7 @@ spacecraft rendezvous \sep uncooperative target \sep reachability analysis \sep 
 
 \end{frontmatter}
 
-\linenumbers
+%\linenumbers  % Disabled: causes TeX capacity overflow with many figures
 
 %% ========================================================================
 \section{Introduction}
@@ -67,7 +67,7 @@ No existing work provides a unified, computationally efficient framework that ma
 
 This paper makes four specific contributions:
 \begin{enumerate}
-\item \textbf{Hierarchical feasibility certification.}  Four nested safe-start regions---robust ($\mathcal{X}_{\mathrm{rob}}$), stochastic ($\mathcal{X}_{\mathrm{stoch}}$), nominal ($\mathcal{X}_{\mathrm{nom}}$), and empirical Monte~Carlo ($\mathcal{X}_{\mathrm{MC}}$)---are defined and proven to satisfy $\mathcal{X}_{\mathrm{rob}} \subseteq \mathcal{X}_{\mathrm{stoch}} \subseteq \mathcal{X}_{\mathrm{nom}} \subseteq \mathcal{X}_{\mathrm{MC}}$ by construction.
+\item \textbf{Hierarchical feasibility certification.}  Three nested analytical safe-start regions---robust ($\mathcal{X}_{\mathrm{rob}}$), stochastic ($\mathcal{X}_{\mathrm{stoch}}$), and nominal ($\mathcal{X}_{\mathrm{nom}}$)---are defined and proven to satisfy $\mathcal{X}_{\mathrm{rob}} \subseteq \mathcal{X}_{\mathrm{stoch}} \subseteq \mathcal{X}_{\mathrm{nom}}$ by construction.  An independent empirical Monte~Carlo set ($\mathcal{X}_{\mathrm{MC}}$) provides closed-loop validation under the actual MPC controller.
 
 \item \textbf{Directional per-constraint erosion with synchronisation bound.}  A closed-form inner approximation of the nominal safe region is derived using the constraint-slack rate induced by body-frame rotation and a range-dependent synchronisation limit $r_{\mathrm{sync}} = 2a_{\max}/\omega_t^2$.
 
@@ -151,11 +151,18 @@ Fixed to the tumbling target with $+y_B$ along the docking axis.  Orientation re
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.48\textwidth]{fig_3d_target_body.png}%
+\includegraphics[width=0.48\textwidth]{fig_2d_xy_tb.png}%
 \hfill%
-\includegraphics[width=0.48\textwidth]{fig_3d_lvlh.png}
-\caption{Approach trajectory in the target body frame $\mathcal{F}_B$ (left) and LVLH frame $\mathcal{F}_L$ (right).  The LOS cone is body-fixed; its LVLH projection rotates with the tumble.}
-\label{fig:frames}
+\includegraphics[width=0.48\textwidth]{fig_2d_xy_lvlh.png}
+\caption{Representative approach trajectory projected onto the $x$--$y$ plane.  \textbf{Left:} target body frame $\mathcal{F}_B$.  The chaser starts at 200~m along the docking axis ($+y_B$) and descends within the body-fixed LOS cone (orange), reaching the hold point near the origin.  The trajectory remains centred on the docking axis throughout.  \textbf{Right:} LVLH frame $\mathcal{F}_L$.  The same trajectory appears as a large spiral because the cone rotates with the tumbling target; CWH along-track drift produces the characteristic radial excursion before the controller captures the hold.}
+\label{fig:traj_2d}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.65\textwidth]{fig_3d_target_body.png}
+\caption{Three-dimensional approach trajectory in the target body frame $\mathcal{F}_B$.  The polyhedral LOS cone (orange wireframe, 8 faces, half-angle $30^\circ$) is body-fixed.  The chaser (blue curve) enters the cone from 200~m, manoeuvres onto the docking axis ($+y_B$), and converges to the hold point (black star) while remaining within the cone at all times.  The out-of-plane ($z_B$) motion is negligible because the tumble axis is aligned with $z$.}
+\label{fig:traj_3d}
 \end{figure}
 
 
@@ -165,6 +172,7 @@ Fixed to the tumbling target with $+y_B$ along the docking axis.  Orientation re
 %% ========================================================================
 
 \subsection{Nonlinear Truth Model}
+\label{sec:truth}
 
 Truth propagation uses full nonlinear dynamics in $\mathcal{F}_I$.  Each spacecraft is governed by:
 \begin{equation}
@@ -209,8 +217,20 @@ The relative state in $\mathcal{F}_B$ is:
 where the transport term in~\eqref{eq:vel_transform} requires co-rotation velocity $v_{\mathrm{corot}} = \omega_t r$ at range $r$.
 
 \subsection{Online MPC Linearisation}
+\label{sec:linearise}
 
-The MPC matrices are recomputed at each step via forward finite differences ($\epsilon = 10^{-6}$) applied to the full nonlinear pipeline: ECI recovery $\to$ \texttt{ode113} propagation $\to$ attitude update $\to$ body-frame projection~\eqref{eq:pos_transform}--\eqref{eq:vel_transform}.  This captures $J_2$ and Coriolis effects that a frozen CWH model would miss.
+At every control step $k$, the MPC prediction matrices $(A_{d,k}, B_{d,k})$ are recomputed via forward finite differences ($\epsilon = 10^{-6}$) applied to the full nonlinear propagation pipeline:
+\begin{equation}
+\underbrace{\mathcal{F}_B \to \text{ECI}}_{\text{frame recovery}} \to
+\underbrace{\texttt{ode113}}_{\substack{\text{two-body}\\\text{+}J_2}} \to
+\underbrace{\text{attitude}}_{\text{update}} \to
+\underbrace{\text{ECI} \to \mathcal{F}_B}_{\substack{\text{body-frame}\\\text{projection}}}
+\label{eq:linearise_pipeline}
+\end{equation}
+Each column of $A_{d,k}$ (respectively $B_{d,k}$) is obtained by perturbing one state (respectively input) component by $\epsilon$ and differencing the output of this pipeline, requiring $1 + n_x + n_u = 10$ nonlinear propagations per step.  The resulting time-varying matrices capture $J_2$ secular drift, Coriolis coupling, and the instantaneous attitude geometry---effects that a frozen CWH model cannot represent.
+
+\paragraph{Model usage distinction.}
+The CWH state-transition matrix $\Phi(\tau)$ (Appendix~\ref{app:stm}) is used exclusively for the \emph{offline} reachability analysis of Section~\ref{sec:reachability}, where its closed-form structure enables efficient polytope computations.  All \emph{online} MPC predictions use the finite-difference linearisation described above, ensuring that the controller's prediction model is consistent with the nonlinear truth dynamics.
 
 
 %% ========================================================================
@@ -284,13 +304,14 @@ The MC configuration uses asymmetric $R_{\Delta u}$ (heavier penalty on radial/c
 \label{sec:guidance}
 %% ========================================================================
 
-The guidance law operates in three regimes based on range $r = \|\mathbf{r}_B\|$:
-
+The guidance system is a single receding-horizon MPC controller operating in the target-body frame at every control step $k$:
 \begin{enumerate}
-\item \textbf{Far approach} ($r > r_{\mathrm{sync}}$): LVLH PD tracking with velocity limiting.
-\item \textbf{Close approach} ($r \le r_{\mathrm{sync}}$): body-frame PD tracking, naturally maintaining co-rotation.
-\item \textbf{Hold}: station-keeping with CWH feedforward $\mathbf{a}_{\mathrm{ff}} = -[3n^2 x + 2n\dot{y},\; -2n\dot{x},\; -n^2 z]^\top$.
+\item \textbf{Linearise.} Finite-difference Jacobians $(A_{d,k}, B_{d,k})$ are computed about the current state and input (see Section~\ref{sec:linearise}).
+\item \textbf{Build and solve QP.} The cost~\eqref{eq:cost} with dynamics~\eqref{eq:dyn_con}, LOS~\eqref{eq:los_con}, and input-bound~\eqref{eq:input_con} constraints is assembled and solved by OSQP~\cite{Stellato2020}.
+\item \textbf{Apply.} Only the first optimal input $\mathbf{u}_0^*$ is applied after clamping to $[-a_{\max}, a_{\max}]$ per axis.
+\item \textbf{Propagate.} The nonlinear truth model (Section~\ref{sec:truth}) advances both spacecraft in ECI; the relative state is re-projected into $\mathcal{F}_B$ for the next step.
 \end{enumerate}
+The reference trajectory is an exponential approach along the docking axis: $y_{\mathrm{ref}}(t) = y_{\mathrm{end}} + (y_0 - y_{\mathrm{end}})e^{-t/\tau}$ with $y_0 = 200$~m, $y_{\mathrm{end}} = 5$~m, and $\tau = 200$~s.  No separate proportional-derivative (PD) controller or regime switching is used; the MPC directly handles both far-field approach and close-range station-keeping through the LOS constraint and reference tracking.
 
 
 %% ========================================================================
@@ -335,11 +356,14 @@ For bounded $\mathbf{w}_k \in \mathcal{W}$, worst-case support function tighteni
 
 \subsection{Hierarchy Guarantee}
 
-Since $\Delta_i^{\mathrm{rob}} \ge \Delta_i^{\mathrm{stoch}} \ge 0$:
+Since $\Delta_i^{\mathrm{rob}} \ge \Delta_i^{\mathrm{stoch}} \ge 0$, any state satisfying the robust tightened constraints also satisfies the stochastic and nominal ones:
 \begin{equation}
-\boxed{\mathcal{X}_{\mathrm{rob}} \subseteq \mathcal{X}_{\mathrm{stoch}} \subseteq \mathcal{X}_{\mathrm{nom}} \subseteq \mathcal{X}_{\mathrm{MC}}.}
+\boxed{\mathcal{X}_{\mathrm{rob}} \subseteq \mathcal{X}_{\mathrm{stoch}} \subseteq \mathcal{X}_{\mathrm{nom}}.}
 \label{eq:hierarchy}
 \end{equation}
+
+\paragraph{Relationship to Monte Carlo validation.}
+The empirical set $\mathcal{X}_{\mathrm{MC}}$ is \emph{not} analytically nested with the three sets above.  $\mathcal{X}_{\mathrm{MC}}$ records where the actual closed-loop MPC controller succeeds under nonlinear truth dynamics.  Because the analytical sets certify open-loop feasibility (existence of \emph{any} admissible control sequence), whereas the MPC controller may fail due to finite prediction horizon, solver tolerance, or linearisation error, it is possible for $\mathcal{X}_{\mathrm{MC}} \not\supseteq \mathcal{X}_{\mathrm{nom}}$ at some operating points.  Table~\ref{tab:hierarchy_full} confirms this: at $\omega_t = 2$~deg/s, $a_{\max} = 0.20$~m/s$^2$, the nominal safe fraction is 45.0\% while the MC safe fraction is 27.7\%.  $\mathcal{X}_{\mathrm{MC}}$ therefore serves as an independent empirical benchmark, not as part of the analytical nesting chain.
 
 
 %% ========================================================================
@@ -349,25 +373,28 @@ Since $\Delta_i^{\mathrm{rob}} \ge \Delta_i^{\mathrm{stoch}} \ge 0$:
 
 \subsection{Campaign Design}
 
-For each of the $5 \times 4 = 20$ $(\omega_t, a_{\max})$ combinations:
+For each of the $5 \times 4 = 20$ $(\omega_t, a_{\max})$ combinations, the following procedure produces an empirical feasibility map:
 
 \begin{enumerate}
-\item \textbf{IC sampling.}  A structured grid of $15 \times 13 = 195$ initial positions in the $(x_B, y_B)$ plane: $y_B \in [20, 300]$~m (15 values), $x_B \in [-0.95\tan(30^\circ)y_B,\; 0.95\tan(30^\circ)y_B]$ (13 values per $y_B$).  Initial velocity is zero in $\mathcal{F}_B$.
+\item \textbf{IC sampling.}  A structured grid of $15 \times 13 = 195$ initial positions in the $(x_B, y_B)$ plane covers the LOS corridor: $y_B \in [20, 300]$~m (15 values, logarithmically spaced to concentrate samples near the docking port), $x_B \in [-0.95\tan(30^\circ)y_B,\; 0.95\tan(30^\circ)y_B]$ (13 values per $y_B$).  Initial velocity is zero in $\mathcal{F}_B$.
 
-\item \textbf{Closed-loop simulation.}  Each IC is simulated for 400~s using nonlinear ECI truth dynamics~\eqref{eq:eci_eom}, quaternion attitude propagation~\eqref{eq:quat_prop}, online linearisation, QP solution~\eqref{eq:mpc} with MC configuration (Table~\ref{tab:mpc_config}), and body-frame extraction~\eqref{eq:pos_transform}--\eqref{eq:vel_transform}.
+\item \textbf{Closed-loop simulation.}  Each IC is simulated for $T_{\mathrm{sim}} = 400$~s using the MC MPC configuration (Table~\ref{tab:mpc_config}): prediction horizon $N_p = 20$, asymmetric input-rate penalty $R_{\Delta u} = \mathrm{diag}(10^5, 10^4, 10^5)$, and relaxed solver tolerances.  The truth dynamics, attitude propagation, and online linearisation are identical to the single-scenario case (Section~\ref{sec:linearise}).
 
-\item \textbf{Classification.}  \emph{Feasible}: zero LOS violations (tolerance $\epsilon = 10^{-3}$~m) over $T_{\mathrm{sim}}$.  \emph{Infeasible}: any violation exceeds $\epsilon$, OSQP reports infeasibility, or early termination.
+\item \textbf{Classification.}  An IC is labelled \emph{feasible} if the entire trajectory satisfies all LOS constraints with margin $\epsilon = 10^{-3}$~m and OSQP reports a solved status at every step.  An IC is \emph{infeasible} if any constraint violation exceeds~$\epsilon$, OSQP reports infeasibility or numerical failure, or the simulation terminates early due to divergence.
 
-\item \textbf{Interpolation.}  Binary outcomes are mapped to the $300^2$ analytical grid via natural-neighbour interpolation (nearest-neighbour extrapolation at boundaries).
+\item \textbf{Interpolation.}  The 195 binary outcomes are mapped to the $300^2$ analytical evaluation grid via natural-neighbour interpolation (nearest-neighbour extrapolation at boundaries).  This interpolation enables direct point-wise comparison with the analytical sets but introduces smoothing: the true MC boundary may differ by up to one IC spacing (approximately 20~m in $y_B$, variable in $x_B$).
 \end{enumerate}
+
+\paragraph{Inner-approximation character.}
+$\mathcal{X}_{\mathrm{MC}}$ is an \emph{inner approximation} of the true closed-loop feasible set: (i)~a finite IC grid may miss feasible regions between sample points, and (ii)~the binary classifier is conservative (any violation, however brief, renders an IC infeasible).  $\mathcal{X}_{\mathrm{MC}}$ should therefore be interpreted as a lower bound on closed-loop feasibility, not as an exact boundary.
 
 \subsection{Computational Setup}
 
-Each of the 3\,900 simulations is independent, enabling \texttt{parfor} parallelisation.  Progress is tracked via \texttt{DataQueue} callbacks.  Total campaign: 2--4~hours on an 8-core workstation.
+Each of the 3\,900 simulations ($20$ parameter combinations $\times$ $195$ ICs) is independent, enabling \texttt{parfor} parallelisation across 8 workers.  Progress is tracked via \texttt{DataQueue} callbacks.  Total campaign runtime: 2--4~hours on an 8-core workstation, dominated by the per-step finite-difference linearisation (10 nonlinear propagations per control step).
 
 \subsection{Data Archiving}
 
-Per combination: 195-element outcome vector, IC list, body-frame trajectory histories, terminal states for failures, termination reasons, and interpolated heatmap.  Combined dataset stored in a single \texttt{.mat} file.
+Per combination: 195-element outcome vector, IC list, body-frame trajectory histories, terminal states and termination reasons for infeasible cases, and the interpolated $300^2$ heatmap.  The combined dataset is stored in a single \texttt{.mat} file for reproducibility.
 
 
 %% ========================================================================
@@ -375,10 +402,80 @@ Per combination: 195-element outcome vector, IC list, body-frame trajectory hist
 \label{sec:results}
 %% ========================================================================
 
-\subsection{Illustrative Example: Double Integrator}
+\subsection{Reachability Illustration on a Constrained Double Integrator}
 \label{sec:di_example}
 
-To build intuition, consider the 2D double integrator $\mathbf{x}_{k+1} = \bigl[\begin{smallmatrix}1&1\\0&1\end{smallmatrix}\bigr]\mathbf{x}_k + \bigl[\begin{smallmatrix}0.5\\1\end{smallmatrix}\bigr]u_k + \mathbf{w}_k$ with $|x_1| \le 5$, $|x_2| \le 3$, $|u| \le 1$, and target $\mathcal{T} = \{|x_1| \le 0.5, |x_2| \le 0.3\}$.  Backward reachable sets for $N=5$ under nominal, stochastic ($\mathbf{w}_k \sim \mathcal{N}(0, \mathrm{diag}(0.01,0.005))$, $\alpha=0.05$), and robust ($|w_1| \le 0.1$, $|w_2| \le 0.05$) assumptions verify $\mathcal{X}_{\mathrm{rob}} \subset \mathcal{X}_{\mathrm{stoch}} \subset \mathcal{X}_{\mathrm{nom}}$ on a $200^2$ grid.
+To illustrate how disturbances shrink reachable sets before applying these concepts to the CWH dynamics, we consider a 2D discrete-time double integrator:
+\begin{equation}
+\mathbf{x}_{k+1} = \underbrace{\begin{bmatrix} 1 & 1 \\ 0 & 1 \end{bmatrix}}_{A}\,\mathbf{x}_k + \underbrace{\begin{bmatrix} 0 \\ 1 \end{bmatrix}}_{B}\,u_k + \mathbf{w}_k,
+\label{eq:di_system}
+\end{equation}
+with state $\mathbf{x} = [x_1, x_2]^\top$ (position and velocity), scalar control $u \in [-1, 1]$, and box state constraints $|x_1| \le 5$, $|x_2| \le 5$.  The additive disturbance $\mathbf{w}_k$ belongs to a hyper-rectangular set:
+\begin{equation}
+\mathcal{W} = \{\mathbf{w} \in \mathbb{R}^2 : |w_i| \le \bar{w}_i,\; i=1,2\}, \quad \bar{w}_1 = \bar{w}_2 = 0.2.
+\label{eq:di_disturbance}
+\end{equation}
+
+Starting from an initial set $\mathcal{X}_0 = \{|x_1| \le 0.5,\; |x_2| \le 0.5\}$, the \emph{forward reachable set} at step $N$ is the set of all states reachable via \emph{any} admissible control sequence of length $N$ while satisfying state constraints at each step.  Two variants are computed on a $200^2$ grid over $N=5$ steps using $n_u = 10$ uniformly spaced control samples:
+
+\begin{itemize}
+\item \textbf{Nominal} ($\mathbf{w}_k = \mathbf{0}$): a grid point $\mathbf{x}'$ is reachable at step $k+1$ if there exists a reachable state $\mathbf{x}$ at step $k$ and a control $u$ such that $\mathbf{x}' = A\mathbf{x} + Bu$ lies within the state constraints.
+\item \textbf{Robust} ($\mathbf{w}_k \in \mathcal{W}$): a grid point $\mathbf{x}'$ is reachable at step $k+1$ only if, for the selected $(x, u)$ pair, $A\mathbf{x} + Bu + \mathbf{w}$ remains within the state constraints for \emph{all} disturbance vertices of~$\mathcal{W}$.
+\end{itemize}
+
+Figure~\ref{fig:di_reachability} shows the results.  The nominal reachable set (green, 53.2\% of the state space) extends to the constraint boundaries in both dimensions.  The robust set (purple, 51.2\%) is visibly smaller, particularly near the boundary corners where the disturbance can push states outside the constraint box.  The 3.9~percentage-point shrinkage quantifies the ``price of robustness'' for this disturbance level.
+
+The same conceptual mechanism operates in the spacecraft LOS corridor problem: the rotating cone constraints introduce apparent disturbance through frame rotation, and the robust safe-start region shrinks relative to the nominal one by an amount that depends on the ratio $a_{\max}/\omega_t^2$.  A double-integrator model, however, would overestimate the feasible region because it neglects the CWH secular along-track drift $6n(\sin n\tau - n\tau)$ that couples radial offset to along-track displacement.  This coupling effectively acts as an additional ``disturbance'' not captured by the DI model, explaining why DI-based feasibility certification is optimistic compared to CWH-based analysis.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{fig_double_integrator_reachability.png}
+\caption{Forward reachable sets for the 2D constrained double integrator~\eqref{eq:di_system} over $N=5$ steps.  \textbf{(a)}~Nominal set (no disturbance): green region shows all states reachable from $\mathcal{X}_0$ (black box at origin) via admissible controls while satisfying state constraints (dashed box).  \textbf{(b)}~Robust set: purple region accounts for worst-case bounded disturbance $\mathcal{W}$; the boundary contracts by $\sim$4\% relative to nominal, especially near constraint corners.  \textbf{(c)}~Overlay: the robust set is strictly contained within the nominal set, illustrating the inclusion $\mathcal{X}_{\mathrm{rob}} \subseteq \mathcal{X}_{\mathrm{nom}}$ by construction.}
+\label{fig:di_reachability}
+\end{figure}
+
+\subsection{Single-Scenario Closed-Loop Approach}
+
+Before the parametric sweep, we examine a single representative case ($\omega_t = 1$~deg/s, $a_{\max} = 0.10$~m/s$^2$) in detail.  The chaser starts at $[0, 200, 0]^\top$~m in LVLH with zero initial velocity.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{fig_approach_profile.png}
+\caption{Approach profile for the baseline scenario ($\omega_t = 1$~deg/s, $a_{\max} = 0.10$~m/s$^2$).  \textbf{Top:} distance along the docking axis ($y_{TB}$) vs.\ the exponential reference.  The chaser tracks the reference closely, with small oscillations during the initial transient caused by CWH cross-coupling.  \textbf{Middle:} radial deviation $\sqrt{x_{TB}^2 + z_{TB}^2}$ from the docking axis.  After a 25~m peak during the initial settling, the deviation converges to near zero.  \textbf{Bottom:} minimum LOS cone margin (positive = inside cone).  The margin remains positive throughout, confirming zero LOS violations.}
+\label{fig:approach_profile}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{fig_cost_vs_time.png}
+\caption{MPC stage cost $J_k$ versus time for the baseline scenario.  The cost peaks at $\sim$10\,000 during the initial transient when the state deviation from the reference is largest, then decays monotonically as the chaser converges to the hold point.  The secondary bump near $t = 40$~s corresponds to the CWH along-track oscillation visible in Fig.~\ref{fig:approach_profile}.  After $t = 300$~s the cost approaches zero, indicating near-perfect tracking.}
+\label{fig:cost_vs_time}
+\end{figure}
+
+\subsection{Input-Rate Penalty Sensitivity}
+
+The input-rate penalty $R_{\Delta u}$ controls the trade-off between tracking aggressiveness and control smoothness.  Four values are compared: $R_{\Delta u} \in \{10^5, 10^6, 10^7, 10^8\} \times \mathrm{diag}(1, 0.1, 1)$.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{fig_rdu_positions.png}
+\caption{Position components versus time for four $R_{\Delta u}$ values, in target body (left) and LVLH (right) frames.  \textbf{$x$-axis:} all scenarios converge $x_{TB} \to 0$; lower $R_{\Delta u}$ produces faster settling but larger initial overshoot (up to 30~m).  In LVLH, the radial excursion reaches $-130$~m due to CWH drift before returning to origin.  \textbf{$y$-axis:} docking-axis approach profiles are nearly identical across all four cases, showing that the exponential reference dominates the approach rate.  \textbf{$z$-axis:} cross-track motion remains within $\pm$50~m in both frames; the $R_{\Delta u} = 10^8$ case shows slightly larger $J_2$-induced drift at late times due to its inability to command rapid corrections.}
+\label{fig:rdu_positions}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{fig_rdu_control_tb.png}
+\caption{Control acceleration components in $\mathcal{F}_B$ for four $R_{\Delta u}$ values.  \textbf{$u_{x,TB}$:} the lowest penalty ($R_{\Delta u} = 10^5$, blue) produces the most aggressive corrections, with peak thrust of $0.15$~m/s$^2$ and persistent oscillations during hold; higher penalties progressively smooth the response.  \textbf{$u_{y,TB}$:} all cases show similar magnitude ($\pm 0.05$--$0.10$~m/s$^2$) reflecting the common approach reference, but the $R_{\Delta u} = 10^5$ case exhibits higher-frequency content.  \textbf{$u_{z,TB}$:} the cross-track control effort is negligible ($< 0.2$~m/s$^2$) for all cases because the planar tumble does not excite the $z$-axis; the scale confirms that this is a predominantly 2D problem.}
+\label{fig:rdu_control}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.75\textwidth]{fig_rdu_deltav.png}
+\caption{Cumulative $\Delta v$ versus time for the four $R_{\Delta u}$ cases.  Lower input-rate penalties produce higher fuel consumption: $R_{\Delta u} = 10^5$ reaches 19.5~m/s at $t = 600$~s, while $R_{\Delta u} = 10^8$ uses only 14.8~m/s---a 24\% reduction.  The curves diverge primarily during the first 100~s (initial manoeuvre) and again during steady-state hold (due to different control chattering levels).  This quantifies the fuel--smoothness trade-off: aggressive penalties track faster but at higher propellant cost.}
+\label{fig:rdu_deltav}
+\end{figure}
 
 \subsection{Nominal Forward Reachability}
 
@@ -399,10 +496,12 @@ $\omega_t$ (deg/s) & $a_{\max}\!=\!0.20$ & $0.10$ & $0.05$ & $0.02$ \\
 \end{tabular}
 \end{table}
 
+The safe fraction decreases rapidly with tumble rate due to the $\omega_t^{-2}$ dependence of $r_{\mathrm{sync}}$ and the quadratic growth of the erosion term.  At $\omega_t = 1$~deg/s with $a_{\max} = 0.20$~m/s$^2$, 80.1\% of the cone is certified safe; at $\omega_t = 5$~deg/s with $a_{\max} = 0.02$~m/s$^2$, the safe region shrinks to near zero.
+
 \begin{figure}[H]
 \centering
 \includegraphics[width=\textwidth]{nominal_forward_grid.png}
-\caption{Nominal forward safe-start regions.  Green: safe; blue: inside cone but unsafe; red: outside cone.}
+\caption{Nominal forward safe-start regions for all $5 \times 4 = 20$ parameter combinations on a $300 \times 300$ evaluation grid.  Green: certified safe (erosion margin positive and inside $r_{\mathrm{sync}}$); blue: inside the LOS cone but fails the erosion or range test; red: outside the cone entirely.  The safe region shrinks rapidly as $\omega_t$ increases (top to bottom) or $a_{\max}$ decreases (left to right), reflecting the $a_{\max}/\omega_t^2$ scaling.}
 \label{fig:nominal_grid}
 \end{figure}
 
@@ -425,11 +524,13 @@ $\omega_t$ & $a_{\max}$ & Forward & Backward & Gap \\
 \end{tabular}
 \end{table}
 
+The backward viability kernel is substantially larger than the erosion estimate in all cases.  This gap quantifies the conservatism of single-step braking: the erosion model assumes the worst-case margin consumption occurs in a single step, whereas the backward analysis accounts for multi-step optimal trajectories that can exploit constraint margins over $N_{\mathrm{back}} = 20$ steps.
+
 \subsection{Hierarchy Comparison}
 
 \begin{table}[H]
 \centering
-\caption{Safe fraction (\%) across all four methods.  Analytical hierarchy Rob $\le$ Stoch $\le$ Nom verified with zero violations.}
+\caption{Safe fraction (\%) across all four methods.  The analytical hierarchy Rob~$\le$~Stoch~$\le$~Nom is verified with zero violations.  MC is an independent empirical validation set: MC~$<$~Nom for some combinations (e.g.\ $\omega_t = 2$, $a_{\max} = 0.20$) because the closed-loop MPC controller may fail where open-loop feasibility analysis succeeds.}
 \label{tab:hierarchy_full}
 \begin{tabular}{cc|ccc|c}
 \toprule
@@ -448,16 +549,23 @@ $\omega_t$ & $a_{\max}$ & Nom & Stoch & Rob & MC \\
 \begin{figure}[H]
 \centering
 \includegraphics[width=\textwidth]{comparison_grid.png}
-\caption{Nested feasibility hierarchy.  Nominal (green) $\supseteq$ stochastic (blue) $\supseteq$ robust (purple).}
+\caption{Nested feasibility hierarchy for all 20 parameter combinations.  Each panel shows the nominal (green), stochastic (blue), and robust (purple) safe regions.  The inclusion $\mathcal{X}_{\mathrm{rob}} \subseteq \mathcal{X}_{\mathrm{stoch}} \subseteq \mathcal{X}_{\mathrm{nom}}$ is verified point-wise with zero violations across the entire $300 \times 300$ grid.  For benign cases (top-left), all three regions span most of the cone.  For aggressive cases (bottom-right), the robust region collapses to a small neighbourhood near the docking axis.}
 \label{fig:comparison}
 \end{figure}
 
 \subsection{Monte Carlo Feasibility Maps}
 
+Rather than a single combined grid, individual MC feasibility maps are presented for each thrust authority level (Figure~\ref{fig:mc}), showing the progressive effect of tumble rate at fixed $a_{\max}$.  The four panels reveal the erosion mechanism quantitatively: as $a_{\max}$ decreases from 0.20 to 0.02~m/s$^2$, the synchronisation range $r_{\mathrm{sync}} = 2a_{\max}/\omega_t^2$ shrinks quadratically, and the feasible region contracts toward the docking axis.  At the highest thrust authority ($a_{\max} = 0.20$~m/s$^2$), the chaser can co-rotate with the cone from most initial positions at $\omega_t = 1$~deg/s, whereas at the lowest ($a_{\max} = 0.02$~m/s$^2$), only initial conditions very close to the docking axis retain feasibility---even at low tumble rates.  This trend directly mirrors the analytical erosion formula~\eqref{eq:erosion}: the margin consumed by rotational apparent velocity grows as $\omega_t^2$ while the braking capacity scales as $a_{\max}$, producing the sharp cliff-like transition visible in the maps.
+
 \begin{figure}[H]
 \centering
-\includegraphics[width=\textwidth]{fig_mc_sweep_grid.png}
-\caption{MC feasibility sweep: 195 ICs per scenario.  Green: feasible; red: infeasible.}
+\includegraphics[width=0.48\textwidth]{fig_mc_amax_0.20.png}%
+\hfill%
+\includegraphics[width=0.48\textwidth]{fig_mc_amax_0.10.png}\\[6pt]
+\includegraphics[width=0.48\textwidth]{fig_mc_amax_0.05.png}%
+\hfill%
+\includegraphics[width=0.48\textwidth]{fig_mc_amax_0.02.png}
+\caption{Monte Carlo feasibility maps per thrust authority level.  Each panel shows the LOS cone in the $(x_B, y_B)$ plane with green shading indicating the empirically feasible region for each tumble rate ($\omega_t = 1$--$5$~deg/s, progressively darker green).  Blue regions are inside the cone but infeasible; red is outside the cone.  \textbf{Top-left} ($a_{\max} = 0.20$~m/s$^2$): 159/195 ICs feasible at $\omega_t = 1$~deg/s, dropping to 13/195 at $\omega_t = 5$~deg/s.  \textbf{Top-right} ($a_{\max} = 0.10$~m/s$^2$): feasible region contracts toward the docking axis.  \textbf{Bottom-left} ($a_{\max} = 0.05$~m/s$^2$): only the near-axis region at low $\omega_t$ remains feasible.  \textbf{Bottom-right} ($a_{\max} = 0.02$~m/s$^2$): only 36/195 ICs feasible at $\omega_t = 1$~deg/s and none for $\omega_t \ge 3$~deg/s.  The asymmetry about the docking axis arises from CWH along-track coupling: negative $x_B$ offsets produce along-track drift toward the target, which is easier to arrest than drift away.}
 \label{fig:mc}
 \end{figure}
 
@@ -481,7 +589,7 @@ $\omega_t$ & $a_{\max}$ & $r_{\mathrm{sync}}$ & $\Delta v$ & LOS viol. & Status 
 \end{tabular}
 \end{table}
 
-Starts from outside $r_{\mathrm{sync}}$ produce LOS violations; starts within $r_{\mathrm{sync}}$ achieve \textbf{zero violations}.
+When $r_0 < r_{\mathrm{sync}}$, the chaser can co-rotate with the cone from the start and LOS violations remain bounded.  When $r_0 > r_{\mathrm{sync}}$, the initial rotational velocity exceeds the chaser's braking capacity, producing unavoidable transient violations until the range decreases below $r_{\mathrm{sync}}$.  Starts from within $r_{\mathrm{sync}}$ with sufficient thrust achieve \textbf{zero LOS violations}.
 
 \subsection{Computational Efficiency}
 
@@ -505,6 +613,8 @@ Monte Carlo ($20 \times 195$ sims) & 2--4 h \\
 \end{tabular}
 \end{table}
 
+The analytical framework computes all four certification levels for all 20 parameter combinations in under one minute, compared to hours for the MC campaign.  This two-orders-of-magnitude speedup makes the approach suitable for onboard mission replanning where computational resources are limited.
+
 
 %% ========================================================================
 \section{Discussion}
@@ -517,15 +627,34 @@ For $\omega_t = 1$~deg/s, $a_{\max} = 0.20$~m/s$^2$: robust covers 75.2\% (vs.\ 
 
 \subsection{Universal Scaling Parameter}
 
-$a_{\max}/\omega_t^2$ (dimension: length, equals $r_{\mathrm{sync}}/2$) governs both erosion magnitude and safe-region extent.  All results collapse when plotted against this single parameter.
+$a_{\max}/\omega_t^2$ (dimension: length, equals $r_{\mathrm{sync}}/2$) governs both erosion magnitude and safe-region extent.  Figure~\ref{fig:scaling_collapse} demonstrates this collapse: when the safe fraction is plotted against $a_{\max}/\omega_t^2$ for all 20 $(\omega_t, a_{\max})$ combinations, the nominal, stochastic, and robust results each fall on a single monotonically increasing curve.  The MC results show the same overall trend but with larger scatter, reflecting the sensitivity of closed-loop MPC success to operating-point-specific factors (prediction horizon, linearisation quality, constraint activity) that the open-loop analytical methods average out.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\columnwidth]{fig_scaling_collapse.png}
+\caption{Safe fraction versus the universal scaling parameter $a_{\max}/\omega_t^2$ for all 20 parameter combinations.  The three analytical methods (nominal, stochastic, robust) collapse onto single curves, confirming $a_{\max}/\omega_t^2$ as the governing dimensionless group.  The Monte Carlo results (green triangles) follow the same trend but with greater variability due to controller-specific effects.  The top axis shows the corresponding synchronisation range $r_{\mathrm{sync}} = 2a_{\max}/\omega_t^2$.}
+\label{fig:scaling_collapse}
+\end{figure}
 
 \subsection{Erosion Conservatism}
 
 Forward-backward gap (Table~\ref{tab:backward}) quantifies single-step braking pessimism.  At $\omega_t = 1$~deg/s: 80.1\% forward vs.\ 98.1\% backward.
 
-\subsection{CWH vs.\ Double Integrator}
+\subsection{Dynamics Model Ablation: DI vs.\ CWH vs.\ Nonlinear Truth}
 
-CWH secular drift $6n(\sin n\tau - n\tau)$ produces along-track motion absent in double-integrator models.  Implementations using double-integrator truth with reference blending show up to 80\% phantom $\Delta v$ from state teleportation.
+Three dynamics fidelity levels are compared to justify the model choices in this work:
+
+\paragraph{Double integrator (DI).}
+A 6-DOF second-order model $\ddot{\mathbf{r}} = \mathbf{u}$ with no orbital coupling.  DI overpredicts safe fractions because it ignores the CWH secular drift term $6n(\sin n\tau - n\tau)$ in the $(2,1)$ element of $\Phi(\tau)$, which causes along-track position growth proportional to radial offset.  Simulations using DI truth dynamics with CWH-based reference blending exhibit up to 80\% phantom $\Delta v$: the mismatch between the DI truth state and the CWH reference creates artificial control effort that inflates feasibility by continuously correcting nonexistent drift.
+
+\paragraph{CWH linearised model.}
+The Hill-Clohessy-Wiltshire equations capture orbital coupling (in-plane secular drift and out-of-plane oscillation) in closed form.  This is the model used for all analytical reachability computations (Section~\ref{sec:reachability}).  For the LEO orbit considered here ($a = 6878$~km), CWH provides an accurate approximation of relative motion at the ranges of interest ($\le 300$~m).
+
+\paragraph{Nonlinear two-body$+J_2$ truth.}
+All closed-loop simulations use independent ECI propagation (\texttt{ode113}) with $J_2$ perturbations.  The primary effect of $J_2$ at LEO is secular node regression and argument-of-perigee drift, which over the 400--600~s simulation window produces $<$0.1~m relative position error compared to CWH---well within the LOS margin.  The key benefit of nonlinear truth is not accuracy at the relative-motion level, but \emph{intellectual honesty}: it eliminates the possibility that CWH artefacts contaminate feasibility claims.
+
+\paragraph{Implication.}
+DI truth would produce a falsely optimistic validation: approaches that appear feasible under DI may fail under CWH or nonlinear dynamics because the unmodelled secular drift pushes the chaser out of the LOS cone.  The CWH-based analytical certification is therefore appropriate for LEO, while the nonlinear truth simulation confirms that CWH predictions are not significantly biased at the ranges and durations considered.
 
 
 %% ========================================================================
@@ -534,7 +663,8 @@ CWH secular drift $6n(\sin n\tau - n\tau)$ produces along-track motion absent in
 %% ========================================================================
 
 \begin{enumerate}
-\item $\mathcal{X}_{\mathrm{rob}} \subseteq \mathcal{X}_{\mathrm{stoch}} \subseteq \mathcal{X}_{\mathrm{nom}} \subseteq \mathcal{X}_{\mathrm{MC}}$ verified across all 20 combinations (zero violations).
+\item The analytical hierarchy $\mathcal{X}_{\mathrm{rob}} \subseteq \mathcal{X}_{\mathrm{stoch}} \subseteq \mathcal{X}_{\mathrm{nom}}$ is verified across all 20 parameter combinations with zero point-wise violations.
+\item The independent Monte~Carlo set $\mathcal{X}_{\mathrm{MC}}$ validates the analytical predictions but is not analytically nested; MC feasibility can be smaller than nominal at high tumble rates where MPC finite-horizon limitations become significant.
 \item $a_{\max}/\omega_t^2$ is the universal scaling parameter for rotating-corridor feasibility.
 \item Analytical certification: 53~s vs.\ 2--4~h MC ($\sim$200$\times$ speedup).
 \item Nonlinear truth propagation reveals double-integrator artefacts.

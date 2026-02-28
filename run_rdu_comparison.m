@@ -192,7 +192,10 @@ for ax = 1:3
         title('Control Input -- Target Body Frame');
         legend(labels, 'Location', 'best', 'FontSize', 8);
     end
-    if ax == 3, xlabel('Time [s]'); end
+    if ax == 3
+        xlabel('Time [s]');
+        ylim([-0.2 0.2]);  % fix z-axis scale for readability
+    end
 end
 saveas(fig4, fullfile(results_dir, 'fig_rdu_control_tb.png'));
 fprintf('  Fig 4: control TB comparison saved.\n');
@@ -335,7 +338,10 @@ for ax = 1:3
     ylabel([labels_tb{ax} ' [m]']);
     title([labels_tb{ax} ' -- Target Body']);
     if ax == 1, legend(labels, 'Location', 'best', 'FontSize', 7); end
-    if ax == 3, xlabel('Time [s]'); end
+    if ax == 3
+        xlabel('Time [s]');
+        ylim([-50 50]);  % fix z-axis scale for readability
+    end
 
     % LVLH
     subplot(3,2,(ax-1)*2+2); hold on; grid on;
@@ -345,7 +351,10 @@ for ax = 1:3
     end
     ylabel([labels_lvlh{ax} ' [m]']);
     title([labels_lvlh{ax} ' -- LVLH']);
-    if ax == 3, xlabel('Time [s]'); end
+    if ax == 3
+        xlabel('Time [s]');
+        ylim([-50 50]);  % fix z-axis scale for readability
+    end
 end
 sgtitle('Position Components -- All Scenarios', 'FontSize', 14, 'FontWeight', 'bold');
 saveas(fig11, fullfile(results_dir, 'fig_rdu_positions.png'));

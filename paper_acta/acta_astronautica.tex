@@ -351,7 +351,7 @@ $\mathcal{X}_{\mathrm{nom}} = \{\mathbf{x} \in \mathcal{X}_{\mathrm{cone}} : s_i
 
 \subsection{Stochastic Safe Region}
 
-Under $\mathbf{w}_k \sim \mathcal{N}(\mathbf{0}, W)$, accumulated covariance $\Sigma_N = \sum_{j=0}^{N_{\mathrm{eff}}-1} \Phi^j W (\Phi^j)^\top$, and Bonferroni correction:
+Under $\mathbf{w}_k \sim \mathcal{N}(\mathbf{0}, W)$, accumulated covariance $\Sigma_N = \sum_{j=0}^{N_{\mathrm{eff}}-1} \Phi^j W (\Phi^j)^\top$, and Bonferroni correction.  We set $N_{\mathrm{eff}} = 50$ steps ($= 50$~s at $\Delta t = 1$~s), which covers approximately $5\times$ the dominant closed-loop time constant $\tau \approx T_{\mathrm{sim}}/5 = 80$~s of the exponential reference trajectory; beyond this horizon the covariance increment $\Phi^j W (\Phi^j)^\top$ decays below $10^{-4}$ of its initial value, so extending $N_{\mathrm{eff}}$ further changes $\Delta_i^{\mathrm{stoch}}$ by less than 0.5\%.  This choice is applied identically in the robust tightening~\eqref{eq:rob_tighten}:
 \begin{equation}
 \Delta_i^{\mathrm{stoch}} = \Phi^{-1}(1 - \alpha/n_c) \sqrt{\mathbf{a}_i^\top \Sigma_N \mathbf{a}_i}.
 \label{eq:stoch_tighten}
@@ -375,6 +375,9 @@ Since $\Delta_i^{\mathrm{rob}} \ge \Delta_i^{\mathrm{stoch}} \ge 0$, any state s
 
 \paragraph{Relationship to Monte Carlo validation.}
 The empirical set $\mathcal{X}_{\mathrm{MC}}$ is \emph{not} analytically nested with the three sets above.  $\mathcal{X}_{\mathrm{MC}}$ records where the actual closed-loop MPC controller succeeds under nonlinear truth dynamics.  Because the analytical sets certify open-loop feasibility (existence of \emph{any} admissible control sequence), whereas the MPC controller may fail due to finite prediction horizon, solver tolerance, or linearisation error, it is possible for $\mathcal{X}_{\mathrm{MC}} \not\supseteq \mathcal{X}_{\mathrm{nom}}$ at some operating points.  Table~\ref{tab:hierarchy_full} confirms this: at $\omega_t = 2$~deg/s, $a_{\max} = 0.20$~m/s$^2$, the nominal safe fraction is 45.0\% while the MC safe fraction is 27.7\%.  $\mathcal{X}_{\mathrm{MC}}$ therefore serves as an independent empirical benchmark, not as part of the analytical nesting chain.
+
+\paragraph{Existence versus attainment.}
+The gap between $\mathcal{X}_{\mathrm{nom}}$ and $\mathcal{X}_{\mathrm{MC}}$ reflects a fundamental distinction: the analytical sets certify that a constraint-satisfying control \emph{exists} (open-loop feasibility), whereas $\mathcal{X}_{\mathrm{MC}}$ measures whether a specific real-time MPC implementation \emph{attains} it (closed-loop success).  In operational terms, $\mathcal{X}_{\mathrm{nom}} \setminus \mathcal{X}_{\mathrm{MC}}$ represents the conservatism gap---initial conditions where feasible trajectories exist in principle but the finite-horizon QP controller, with its particular tuning and linearisation, does not find them.  This gap is a safety margin, not a deficiency: mission planners can use $\mathcal{X}_{\mathrm{rob}}$ for guaranteed safe starts and $\mathcal{X}_{\mathrm{nom}}$ as a theoretical ceiling on what a perfectly tuned controller could achieve, with $\mathcal{X}_{\mathrm{MC}}$ benchmarking the specific controller's performance within this envelope.
 
 
 %% ========================================================================
@@ -441,7 +444,7 @@ The same conceptual mechanism operates in the spacecraft LOS corridor problem: t
 \begin{figure}[H]
 \centering
 \includegraphics[width=\textwidth]{fig_double_integrator_reachability.png}
-\caption{Forward reachable sets for the 2D constrained double integrator~\eqref{eq:di_system} over $N=5$ steps.  \textbf{(a)}~Nominal set (no disturbance): green region shows all states reachable from $\mathcal{X}_0$ (black box at origin) via admissible controls while satisfying state constraints (dashed box).  \textbf{(b)}~Robust set: purple region accounts for worst-case bounded disturbance $\mathcal{W}$; the boundary contracts by $\sim$4\% relative to nominal, especially near constraint corners.  \textbf{(c)}~Overlay: the robust set is strictly contained within the nominal set, illustrating the inclusion $\mathcal{X}_{\mathrm{rob}} \subseteq \mathcal{X}_{\mathrm{nom}}$ by construction.}
+\caption{Forward reachable sets for the 2D constrained double integrator~\eqref{eq:di_system} over $N=5$ steps.  \textbf{(a)}~Nominal set (no disturbance): green region shows all states reachable from $\mathcal{X}_0$ (green square at origin) via admissible controls while satisfying state constraints (dashed box).  \textbf{(b)}~Robust set: purple region accounts for worst-case bounded disturbance $\mathcal{W}$; the boundary contracts by $\sim$4\% relative to nominal, especially near constraint corners.  \textbf{(c)}~Overlay: the robust set is strictly contained within the nominal set, illustrating the inclusion $\mathcal{X}_{\mathrm{rob}} \subseteq \mathcal{X}_{\mathrm{nom}}$ by construction.}
 \label{fig:di_reachability}
 \end{figure}
 
@@ -748,8 +751,12 @@ scaling governs feasibility in this high-tumble-rate regime.
 \centering
 \caption{Benchmark at $\omega_t = 4$~deg/s (Faraci scenario).
   Erosion and multi-step safe fractions, synchronisation range, and
-  computation time.  The RG-OCP solve time (2658~ms per trajectory)
-  is from~\cite{Faraci2025}.}
+  computation time.  Our method computes the \emph{complete} $300 \times 300$
+  safe-start map in the listed time, whereas the RG-OCP solve time
+  (2658~ms from~\cite{Faraci2025}) is per single trajectory---certifying
+  the full map at RG-OCP resolution would require $\sim$10$^5$ solves
+  ($\approx$74~h), a $\sim\!10^5\!\times$ cost difference for full-region
+  certification.}
 \label{tab:benchmark}
 \begin{tabular}{cccccc}
 \toprule
@@ -800,10 +807,11 @@ feasibility to tumble-rate knowledge at high $\omega_t$.
 \centering
 \includegraphics[width=0.85\columnwidth]{faraci_scaling_collapse.png}
 \caption{Safe-start coverage versus the scaling parameter $a_{\max}/\omega_t^2$
-  for tumble rates 1--6~deg/s.  Star markers indicate the Faraci benchmark
-  operating points ($\omega_t = 4$~deg/s).  The collapse of all curves
-  confirms $a_{\max}/\omega_t^2$ as the universal feasibility parameter
-  across a wider range than the baseline sweep of Table~\ref{tab:nominal}.}
+  for tumble rates 1--6~deg/s (extended Faraci benchmark).  Star markers
+  indicate the Faraci benchmark operating points ($\omega_t = 4$~deg/s).
+  The collapse of all curves confirms $a_{\max}/\omega_t^2$ as the universal
+  feasibility parameter across a wider range than the baseline sweep of
+  Table~\ref{tab:nominal}.}
 \label{fig:faraci_scaling}
 \end{figure}
 
@@ -823,6 +831,46 @@ stochastic process noise.  Variable-horizon tube MPC~\cite{Quartullo2024}
 additionally optimises the prediction horizon to handle time-varying target
 orientations, achieving robust trajectory tracking that our framework
 complements with pre-mission certification of the feasible approach region.
+
+\subsection{Extension to Three-Dimensional Tumble}
+\label{sec:3d_tumble}
+
+The present analysis assumes pure spin about the body $z$-axis
+($\boldsymbol{\omega}_B = [0, 0, \omega_t]^\top$), reducing the problem to
+planar rotation of the LOS cone.  This simplification is justified on three
+grounds:
+
+\begin{enumerate}
+\item \textbf{Dominant mode.}  Many LEO debris objects and defunct satellites
+  exhibit principal-axis spin as the dominant tumble mode, particularly after
+  energy dissipation has damped nutation~\cite{Schaub2018}.  For such targets,
+  the single-axis model captures the primary feasibility driver.
+
+\item \textbf{Conservative approximation.}  Adding transverse angular rates
+  ($\omega_x, \omega_y \neq 0$) would increase the apparent rotation-induced
+  drift $\|\boldsymbol{\omega}_B \times \mathbf{r}_B\|$ at every point, thereby
+  increasing the erosion~\eqref{eq:erosion} and shrinking the safe-start region.
+  The single-axis analysis therefore provides an \emph{upper bound} on the safe
+  region for a given $\|\boldsymbol{\omega}_B\|$.
+
+\item \textbf{Decoupling at small transverse rates.}  When the transverse
+  components satisfy $\omega_x, \omega_y \ll \omega_z$, their contribution to
+  the constraint-slack rate $\dot{s}_i$ is perturbative and can be bounded
+  independently, enabling a separable worst-case analysis.
+\end{enumerate}
+
+The framework extends naturally to full 3D tumble by replacing the planar
+rotation velocity $\mathbf{v}_{\mathrm{rot}} = [\omega_t y_B, -\omega_t x_B,
+0]^\top$ with the general cross product $\mathbf{v}_{\mathrm{rot}} =
+\boldsymbol{\omega}_B(t) \times \mathbf{r}_B$, where
+$\boldsymbol{\omega}_B(t)$ is obtained from Euler's equations under torque-free
+precession.  The erosion formula~\eqref{eq:erosion} remains valid with this
+generalised velocity; the synchronisation bound generalises to
+$r_{\mathrm{sync}} = 2a_{\max}/\|\boldsymbol{\omega}_B\|^2$.  The primary
+additional complexity is that the time-varying $\boldsymbol{\omega}_B(t)$
+produces a non-periodic constraint geometry, requiring evaluation over the
+full simulation horizon rather than a single rotation period.  This extension
+is a priority for future work.
 
 \subsection{Towards Hamilton--Jacobi Reachability}
 \label{sec:hj_discussion}

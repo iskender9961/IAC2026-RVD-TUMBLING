@@ -70,7 +70,13 @@ All tuning parameters are in `params.m`. Key knobs:
 ```matlab
 >> main_sim          % full simulation + plots + GIFs
 >> run_tests         % sanity checks (should print "All tests PASSED")
+>> run_monte_carlo   % MC feasibility analysis (uses parfor)
 ```
+
+## Performance
+- Always use `parfor` for Monte Carlo / batch simulations (MATLAB Parallel Computing Toolbox)
+- Use `parallel.pool.DataQueue` for progress reporting inside `parfor`
+- For MC speed: reduce `Np`, `Tsim`, relax ODE tolerances, reduce `osqp_max_iter`
 
 ## Do NOT
 - Do not rename `los_tetra_constraints.m` or `draw_los_tetra.m` (old names were los_polyhedral_constraints / draw_cone_poly)

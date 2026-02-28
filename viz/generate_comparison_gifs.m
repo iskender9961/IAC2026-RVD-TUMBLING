@@ -1,4 +1,4 @@
-function generate_comparison_gifs(results, p_all, labels, colors, results_dir)
+function generate_comparison_gifs(results, p_all, labels, colors, styles, results_dir)
 %GENERATE_COMPARISON_GIFS  Animated GIFs overlaying all Rdu scenarios.
 %
 %   GIF 1: gif_rdu_tb_topview       -- TB xy with cone, all trajectories
@@ -8,7 +8,7 @@ function generate_comparison_gifs(results, p_all, labels, colors, results_dir)
 %   GIF 5: gif_rdu_2d_xy_lvlh       -- LVLH xy 2D
 %   GIF 6: gif_rdu_combined         -- Big 2x2 combined overview
 
-    if nargin < 5, results_dir = 'results'; end
+    if nargin < 6, results_dir = 'results'; end
 
     n_cases = length(results);
     p0 = p_all{1};
@@ -46,7 +46,6 @@ function generate_comparison_gifs(results, p_all, labels, colors, results_dir)
     for jj = 1:frame_skip:Nt_min
         clf; hold on; grid on; axis equal;
 
-        % Cone (fixed)
         yy = linspace(0, y_max, 100);
         fill([cone_k*yy, fliplr(-cone_k*yy)], [yy, fliplr(yy)], ...
             [1 0.95 0.8], 'FaceAlpha', 0.15, 'EdgeColor', 'none');
@@ -58,7 +57,7 @@ function generate_comparison_gifs(results, p_all, labels, colors, results_dir)
         for ii = 1:n_cases
             lg = results{ii};
             idx = min(jj, length(lg.t_hist));
-            h(ii) = plot(lg.r_tb_hist(1,1:idx), lg.r_tb_hist(2,1:idx), '-', ...
+            h(ii) = plot(lg.r_tb_hist(1,1:idx), lg.r_tb_hist(2,1:idx), styles{ii}, ...
                 'Color', colors{ii}, 'LineWidth', 1.5);
             plot(lg.r_tb_hist(1,idx), lg.r_tb_hist(2,idx), 'o', ...
                 'Color', colors{ii}, 'MarkerSize', 8, 'MarkerFaceColor', colors{ii}, ...
@@ -85,7 +84,6 @@ function generate_comparison_gifs(results, p_all, labels, colors, results_dir)
     for jj = 1:frame_skip:Nt_min
         clf; hold on; grid on; axis equal;
 
-        % Use scenario 1 for cone/axis (all share same target)
         lg1 = results{1};
         R_eci_tb1   = lg1.R_eci_tb_hist(:,:,jj);
         R_eci_lvlh1 = lg1.R_eci_lvlh_hist(:,:,jj);
@@ -102,7 +100,7 @@ function generate_comparison_gifs(results, p_all, labels, colors, results_dir)
             lg = results{ii};
             idx = min(jj, length(lg.t_hist));
             h(ii) = plot3(lg.r_lvlh_hist(1,1:idx), lg.r_lvlh_hist(2,1:idx), ...
-                lg.r_lvlh_hist(3,1:idx), '-', 'Color', colors{ii}, 'LineWidth', 1.5);
+                lg.r_lvlh_hist(3,1:idx), styles{ii}, 'Color', colors{ii}, 'LineWidth', 1.5);
             plot3(lg.r_lvlh_hist(1,idx), lg.r_lvlh_hist(2,idx), ...
                 lg.r_lvlh_hist(3,idx), 'o', 'Color', colors{ii}, ...
                 'MarkerSize', 8, 'MarkerFaceColor', colors{ii}, 'HandleVisibility', 'off');
@@ -141,7 +139,7 @@ function generate_comparison_gifs(results, p_all, labels, colors, results_dir)
             lg = results{ii};
             idx = min(jj, length(lg.t_hist));
             h(ii) = plot3(lg.r_tb_hist(1,1:idx), lg.r_tb_hist(2,1:idx), ...
-                lg.r_tb_hist(3,1:idx), '-', 'Color', colors{ii}, 'LineWidth', 1.5);
+                lg.r_tb_hist(3,1:idx), styles{ii}, 'Color', colors{ii}, 'LineWidth', 1.5);
             plot3(lg.r_tb_hist(1,idx), lg.r_tb_hist(2,idx), ...
                 lg.r_tb_hist(3,idx), 'o', 'Color', colors{ii}, ...
                 'MarkerSize', 8, 'MarkerFaceColor', colors{ii}, 'HandleVisibility', 'off');
@@ -179,7 +177,7 @@ function generate_comparison_gifs(results, p_all, labels, colors, results_dir)
         for ii = 1:n_cases
             lg = results{ii};
             idx = min(jj, length(lg.t_hist));
-            h(ii) = plot(lg.r_tb_hist(1,1:idx), lg.r_tb_hist(2,1:idx), '-', ...
+            h(ii) = plot(lg.r_tb_hist(1,1:idx), lg.r_tb_hist(2,1:idx), styles{ii}, ...
                 'Color', colors{ii}, 'LineWidth', 1.5);
             plot(lg.r_tb_hist(1,idx), lg.r_tb_hist(2,idx), 'o', ...
                 'Color', colors{ii}, 'MarkerSize', 8, 'MarkerFaceColor', colors{ii}, ...
@@ -214,12 +212,10 @@ function generate_comparison_gifs(results, p_all, labels, colors, results_dir)
     for jj = 1:frame_skip:Nt_min
         clf; hold on; grid on; axis equal;
 
-        % Rotating docking axis (from scenario 1, shared target)
         lg1 = results{1};
         d = lg1.dock_axis_lvlh_hist(:, jj);
         plot([0 d(1)*cone_L_fixed], [0 d(2)*cone_L_fixed], 'k--', 'LineWidth', 2.5);
 
-        % Rotating cone edges
         R_eci_tb1   = lg1.R_eci_tb_hist(:,:,jj);
         R_eci_lvlh1 = lg1.R_eci_lvlh_hist(:,:,jj);
         R_lt = R_eci_lvlh1' * R_eci_tb1;
@@ -235,7 +231,7 @@ function generate_comparison_gifs(results, p_all, labels, colors, results_dir)
         for ii = 1:n_cases
             lg = results{ii};
             idx = min(jj, length(lg.t_hist));
-            h(ii) = plot(lg.r_lvlh_hist(1,1:idx), lg.r_lvlh_hist(2,1:idx), '-', ...
+            h(ii) = plot(lg.r_lvlh_hist(1,1:idx), lg.r_lvlh_hist(2,1:idx), styles{ii}, ...
                 'Color', colors{ii}, 'LineWidth', 1.5);
             plot(lg.r_lvlh_hist(1,idx), lg.r_lvlh_hist(2,idx), 'o', ...
                 'Color', colors{ii}, 'MarkerSize', 8, 'MarkerFaceColor', colors{ii}, ...
@@ -275,7 +271,7 @@ function generate_comparison_gifs(results, p_all, labels, colors, results_dir)
         for ii = 1:n_cases
             lg = results{ii};
             idx = min(jj, length(lg.t_hist));
-            h(ii) = plot(lg.r_tb_hist(1,1:idx), lg.r_tb_hist(2,1:idx), '-', ...
+            h(ii) = plot(lg.r_tb_hist(1,1:idx), lg.r_tb_hist(2,1:idx), styles{ii}, ...
                 'Color', colors{ii}, 'LineWidth', 1.5);
             plot(lg.r_tb_hist(1,idx), lg.r_tb_hist(2,idx), 'o', ...
                 'Color', colors{ii}, 'MarkerSize', 6, 'MarkerFaceColor', colors{ii}, ...
@@ -294,7 +290,7 @@ function generate_comparison_gifs(results, p_all, labels, colors, results_dir)
             lg = results{ii};
             idx = min(jj, length(lg.t_hist));
             plot3(lg.r_tb_hist(1,1:idx), lg.r_tb_hist(2,1:idx), ...
-                lg.r_tb_hist(3,1:idx), '-', 'Color', colors{ii}, 'LineWidth', 1.5);
+                lg.r_tb_hist(3,1:idx), styles{ii}, 'Color', colors{ii}, 'LineWidth', 1.5);
             plot3(lg.r_tb_hist(1,idx), lg.r_tb_hist(2,idx), ...
                 lg.r_tb_hist(3,idx), 'o', 'Color', colors{ii}, ...
                 'MarkerSize', 6, 'MarkerFaceColor', colors{ii});
@@ -322,7 +318,7 @@ function generate_comparison_gifs(results, p_all, labels, colors, results_dir)
         for ii = 1:n_cases
             lg = results{ii};
             idx = min(jj, length(lg.t_hist));
-            plot(lg.r_lvlh_hist(1,1:idx), lg.r_lvlh_hist(2,1:idx), '-', ...
+            plot(lg.r_lvlh_hist(1,1:idx), lg.r_lvlh_hist(2,1:idx), styles{ii}, ...
                 'Color', colors{ii}, 'LineWidth', 1.5);
             plot(lg.r_lvlh_hist(1,idx), lg.r_lvlh_hist(2,idx), 'o', ...
                 'Color', colors{ii}, 'MarkerSize', 6, 'MarkerFaceColor', colors{ii});
@@ -336,12 +332,11 @@ function generate_comparison_gifs(results, p_all, labels, colors, results_dir)
         for ii = 1:n_cases
             lg = results{ii};
             idx = min(jj, length(lg.t_hist));
-            plot(lg.t_hist(1:idx), lg.r_tb_hist(2,1:idx), '-', ...
+            plot(lg.t_hist(1:idx), lg.r_tb_hist(2,1:idx), styles{ii}, ...
                 'Color', colors{ii}, 'LineWidth', 1.5);
         end
         xlabel('Time [s]'); ylabel('y_{TB} [m]');
         title('Along-Axis Distance');
-        % vertical time marker
         xline(t_now, 'k--', 'LineWidth', 1);
         xlim([0 results{1}.t_hist(end)]);
 

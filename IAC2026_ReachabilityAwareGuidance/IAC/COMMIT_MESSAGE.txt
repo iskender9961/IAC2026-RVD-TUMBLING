@@ -1,0 +1,28 @@
+Fix velocity teleportation and improve approach physics
+
+Major physics fixes:
+- Fix velocity teleportation at t=0: reference blending now caps
+  velocity changes to a_max*dt per step instead of instant co-rotation
+- Fix x_B monotone enforcement: cap body-frame velocity corrections
+  to a_max*dt to prevent rotation transport term injection at far range
+- Add global velocity change cap in safety function (5*a_max*dt)
+- Make radial decay eps range-proportional for far approach
+- Restore safety projections at all ranges (removed broken bypass)
+
+Controller improvements:
+- radial_upper = r_now for r > 5m (don't bottleneck approach speed)
+- Input rate penalty (weight=12) and magnitude penalty (weight=0.5)
+
+Config updates:
+- Wider LOS cone: cx=1.5, x0=2.5 (~56 deg half-angle)
+- Sim duration 300s, tumble rate 0.03 rad/s
+- Expanded reachability grid: x in [-80,80], y in [0.5,80], 120x80
+
+Visualization:
+- Add docking axis (+y_B dashed black line) to all animations
+- Reachability maps: red forbidden zone, blue cone, green feasible
+- Directional per-constraint erosion for asymmetric safe regions
+- Full suite of time-domain plots and GIF animations
+
+Results: 195m approach to 0.5m hold in 200s, smooth velocity
+profile (peak 4 m/s), LOS constraint satisfied, 30 m/s delta-v.

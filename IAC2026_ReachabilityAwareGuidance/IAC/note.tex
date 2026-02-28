@@ -1,0 +1,315 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{enumitem}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{hyperref}
+\usepackage{xcolor}
+
+\title{Reachability-Aware Start-Region Feasibility Maps for Proximity Guidance\\
+under Rotating Line-of-Sight Constraints}
+\author{IAC 2026 --- Working Draft}
+\date{}
+
+\begin{document}
+\maketitle
+
+%% ====================================================================
+\section{Introduction and Motivation}
+%% ====================================================================
+
+Rendezvous, proximity operations, and docking (RPOD) with a non-cooperative
+tumbling target remain among the most challenging autonomous guidance problems
+in spaceflight.  When the target rotates, the line-of-sight (LOS) feasibility
+corridor---which constrains the chaser to a polyhedral cone aligned with the
+docking port---sweeps in inertial space.  Standard practice evaluates safety
+via Monte Carlo campaigns, which provide statistical coverage but no
+structural guarantees about which initial conditions are persistently
+feasible under the rotating constraint set.
+
+This paper proposes a \emph{reachability-inspired} method for computing
+certified (or conservatively inner-approximated) safe start regions that
+remain within the rotating LOS corridor throughout the approach, as a function
+of two key mission parameters:
+\begin{itemize}[leftmargin=1.4em]
+  \item target tumble rate $\omega_t$,
+  \item chaser thrust-to-mass ratio $a_{\max}$.
+\end{itemize}
+For each ($\omega_t$, $a_{\max}$) pair, the method yields a \emph{nested}
+family of safe regions (higher $a_{\max}$ $\Rightarrow$ larger safe set)
+visualised as overlay feasibility maps in the target body frame.
+
+The main contribution is therefore a \textbf{parametric, reachability-based
+feasibility map that goes beyond Monte Carlo} and provides actionable
+start-region guidance for mission planning.
+
+%% ====================================================================
+\section{Problem Formulation}
+%% ====================================================================
+
+\subsection{Frames and Kinematics}
+Two frames are used:
+\begin{itemize}[leftmargin=1.4em]
+  \item LVLH frame $\{L\}$ for relative-state propagation,
+  \item target body frame $\{B\}$ for docking geometry and LOS constraints.
+\end{itemize}
+The target body rotates about $z$ with angle $\theta(t)=\omega_t t$.
+Transformations between frames include the rotational transport term
+on velocity:
+\[
+  r_B = R(-\theta)\,r_L, \qquad
+  v_B = R(-\theta)\,v_L - \omega \times r_B.
+\]
+
+\subsection{Relative Dynamics}
+A 3D double-integrator model is used in LVLH with bounded acceleration:
+\[
+  x_{k+1} = A_d\,x_k + B_d\,u_k, \qquad \|u_k\| \le a_{\max},
+\]
+where $x = [r^T, v^T]^T \in \mathbb{R}^6$, with sample time $T_s = 0.1$~s.
+
+\subsection{LOS Corridor Constraints}
+For state $x_B$ in target body frame, the LOS corridor is enforced as:
+\[
+  A_c\,x_B \le b_c,
+\]
+with
+\[
+A_c =
+\begin{bmatrix}
+  0 & -1 & 0 & 0 & 0 & 0 \\
+  c_x & -1 & 0 & 0 & 0 & 0 \\
+  -c_x & -1 & 0 & 0 & 0 & 0 \\
+  0 & -1 & c_z & 0 & 0 & 0 \\
+  0 & -1 & -c_z & 0 & 0 & 0
+\end{bmatrix},\quad
+b_c =
+\begin{bmatrix}
+  -r_h \\
+  x_0 - c_x r_h \\
+  x_0 - c_x r_h \\
+  z_0 - c_z r_h \\
+  z_0 - c_z r_h
+\end{bmatrix},
+\]
+where $r_h = 0.50$~m is the hold radius.
+Because the target tumbles, the LOS corridor \emph{rotates with it}: a state
+that is inside the cone at $t=0$ may leave the cone at $t > 0$ if the chaser
+cannot track the rotation.  This is the key difficulty.
+
+%% ====================================================================
+\section{Guidance and Control Architecture}
+%% ====================================================================
+
+A two-layer controller is used:
+\begin{enumerate}[leftmargin=1.6em]
+  \item \textbf{Spiral reference generation}: a smooth approach profile is
+    generated in $\{B\}$ from range $\approx 195$~m down to $0.5$~m along
+    the $+y_B$ docking axis, emphasising lateral (${x_B, z_B}$) nulling
+    before axial closure.
+
+  \item \textbf{QP-based safety filter}: at each step a small QP is solved:
+    \[
+      \min_u \; \|u - u_{\rm nom}\|^2 + w_u\,\|u\|^2
+                + w_{\Delta u}\,\|u - u_{k-1}\|^2
+    \]
+    subject to the LOS, radial, keepout, and velocity constraints propagated
+    over a short prediction horizon ($N = 6$ steps).
+\end{enumerate}
+
+\paragraph{Input-rate penalty.}
+The term $w_{\Delta u}\,\|u_k - u_{k-1}\|^2$ is \emph{mandatory} for
+physically plausible thrust commands.  Without it, the safety projection
+produces chattering control with $>$400 sign changes per run; with it,
+sign changes drop to $\sim$30--40 and the commanded acceleration profile
+is smooth.
+
+\paragraph{Body-frame tracking weights.}
+Lateral axes ($x_B, z_B$) receive high tracking weight to drive the chaser
+onto the docking centerline; the axial axis ($y_B$) receives a low weight
+to prevent overshoot during range closure.
+
+\paragraph{Hold mode.}
+Once the chaser reaches the hold band $[0.45, 0.55]$~m with low speed,
+the controller switches to station-keeping that tracks a fixed docking
+direction in $\{B\}$, rotating with the target.
+
+%% ====================================================================
+\section{Reachability-Based Safe Start-Region Analysis}
+\label{sec:reachability}
+%% ====================================================================
+
+\subsection{Motivation}
+The central question is: \emph{given an initial position $(x_B, y_B)$ inside
+the LOS cone with $v_0=0$, can the chaser remain inside the rotating cone
+for the entire approach?}  This depends on:
+\begin{itemize}[leftmargin=1.4em]
+  \item the tumble rate $\omega_t$ (faster rotation $\Rightarrow$ harder),
+  \item the thrust authority $a_{\max}$ (more thrust $\Rightarrow$ easier).
+\end{itemize}
+
+\subsection{Method: Directional Per-Constraint Erosion}
+
+The analysis is purely geometric---no closed-loop simulation is required.
+
+\paragraph{Step 1: Per-constraint static margin.}
+For each grid point $(x_B, y_B)$ with $z_B = 0$ inside the cone, compute the
+per-constraint half-space margin:
+\[
+  s_i(x_B, y_B) = b_i - a_i^T [x_B, y_B, 0]^T, \qquad i = 1,\dots,5.
+\]
+
+\paragraph{Step 2: Directional erosion from rotation transport.}
+When the body frame rotates at $\omega_t$ about $z$, an inertially-stationary
+chaser at $(x_B, y_B)$ sees an apparent body-frame velocity
+\[
+  v_{\rm rot} = [\,\omega_t\, y_B,\; -\omega_t\, x_B,\; 0\,]^T,
+\]
+arising from the inverse rotation transport ($-\omega \times r_B$).
+The rate of change of each constraint's slack is
+\[
+  \dot s_i = -a_i^T\, v_{\rm rot}.
+\]
+If $\dot s_i < 0$ (margin shrinking), the controller must apply
+$a_{\max}$ to arrest the drift.  Settling-time analysis gives
+\[
+  \delta_i = \frac{1}{2}\,\frac{\dot s_i^2}{a_{\max}}, \qquad
+  \text{if } \dot s_i < 0; \quad \delta_i = 0 \text{ otherwise.}
+\]
+A position is classified as ``safe'' if $s_i > \delta_i$ for all $i$.
+
+\paragraph{Directional asymmetry.}
+Because $v_{\rm rot}$ depends on both the \emph{sign} of $\omega_t$ and
+the \emph{sign} of $x_B$, the erosion is \textbf{asymmetric in $x_B$}.
+For clockwise target rotation ($\omega_t < 0$), the left-hand cone
+boundary erodes while the right-hand boundary gains margin, tilting
+the safe region toward $+x_B$: a chaser starting on the ``upstream''
+side of the rotation has more margin because the cone sweeps
+\emph{away} from it initially.  The opposite holds for counter-clockwise
+rotation.  This matches the physical intuition that rotation direction
+breaks the symmetry of the approach corridor.
+
+\paragraph{Step 3: Overlay visualisation.}
+For each tumble rate, a single overlay plot shows:
+\begin{enumerate}[leftmargin=1.4em]
+  \item the initial LOS cone boundary,
+  \item nested safe regions for $a_{\max} \in \{0.20, 0.10, 0.05, 0.01\}$~m/s$^2$,
+    layered largest to smallest.
+\end{enumerate}
+The safe regions remain monotonically nested in $a_{\max}$, but are no
+longer symmetric in $x_B$.
+
+\subsection{Scope and Honesty}
+This method is labelled a \emph{conservative inner approximation}, not a
+formal proof.  The per-constraint erosion provides a conservative margin but
+does not constitute a certified invariant set in the control-theoretic sense.
+A full polyhedral backward-reachable set computation (e.g., via pre-set
+iteration for the time-varying constraint polytope) is left as planned
+future work.
+
+%% ====================================================================
+\section{Scenario Sweep and Figure Plan}
+\label{sec:figures}
+%% ====================================================================
+
+The study sweeps:
+\begin{itemize}[leftmargin=1.4em]
+  \item target tumble rates: $\omega_t \in \{1, 2, 3, 4, 5\}$~deg/s
+    (5 scenarios),
+  \item thrust-to-mass ratios: $a_{\max} \in \{0.01, 0.05, 0.10, 0.20\}$~m/s$^2$
+    (4 chaser cases).
+\end{itemize}
+
+\paragraph{Figure plan.}
+\begin{enumerate}[leftmargin=1.4em]
+  \item \textbf{Per-tumble overlay maps} ($5\times 1$ figures):
+    \texttt{safe\_maps\_v0\_zero\_omega\_\{1,2,3,4,5\}deg.pdf}.
+    Each shows the LOS cone boundary and overlaid safe regions for all four
+    thrust levels, layered from $0.20$ (largest, lightest) to $0.01$
+    (smallest, darkest).
+
+  \item \textbf{Combined overview}: \texttt{safe\_maps\_v0\_zero.pdf},
+    a panel figure with one subplot per tumble rate.
+
+  \item \textbf{Single-trajectory plots} (dev mode generates these as both
+    PNG and PDF):
+    \begin{itemize}[leftmargin=1em]
+      \item \texttt{body\_position\_vs\_time}: chaser relative position in $\{B\}$,
+      \item \texttt{constraint\_margin\_vs\_time}: min LOS margin $\min(b - Ax)$,
+      \item \texttt{control\_and\_dv\_proxy}: control magnitude + cumulative $\Delta v$,
+      \item \texttt{control\_components\_vs\_time}: per-axis commanded acceleration,
+      \item \texttt{mpc\_cost\_vs\_time}: MPC cost (log + clipped-linear dual panel),
+      \item \texttt{mpc\_cost\_breakdown}: per-term breakdown (position, velocity,
+        input, rate),
+      \item \texttt{range\_vs\_time}: range with monotonic markers and hold switch,
+      \item \texttt{state\_components\_body}: full state in $\{B\}$,
+      \item \texttt{trajectory\_body\_3d}: 3D trajectory in $\{B\}$ with LOS corridor.
+    \end{itemize}
+\end{enumerate}
+
+%% ====================================================================
+\section{Comparison with Industry Practice}
+%% ====================================================================
+
+In current industrial RPOD mission design (e.g., ESA ClearSpace-1, MEV),
+safety verification of the approach corridor is performed via large-scale
+Monte Carlo campaigns that sample initial conditions, disturbances, and
+navigation errors.  While effective for coverage assessment, Monte Carlo
+does not produce a geometric characterisation of the safe start set
+or its dependence on system parameters.
+
+The reachability-based maps proposed here complement Monte Carlo by
+providing:
+\begin{itemize}[leftmargin=1.4em]
+  \item a \emph{structured} view of how the safe set shrinks with tumble rate
+    and grows with thrust authority,
+  \item an \emph{inner approximation} that is conservative by construction
+    (erosion margin accounts for settling-time drift),
+  \item a fast screening tool for mission-level trade studies on thruster
+    sizing and tumble rate constraints.
+\end{itemize}
+
+%% ====================================================================
+\section{Results (Planned)}
+%% ====================================================================
+
+The following results are generated by the accompanying code:
+\begin{itemize}[leftmargin=1.4em]
+  \item single-trajectory demonstration with smooth control
+    (input rate penalty $w_{\Delta u} = 12$),
+  \item feasibility fraction table for the 5$\times$4 tumble/thrust grid,
+  \item per-tumble overlay feasibility maps.
+\end{itemize}
+
+Performance tables and figures are auto-generated and saved in
+\texttt{IAC/data/} and \texttt{IAC/figures/}.
+
+%% ====================================================================
+\section{Conclusion}
+%% ====================================================================
+
+We presented a reachability-inspired method for computing safe start-region
+feasibility maps under rotating LOS constraints caused by target tumbling.
+The method uses a purely geometric, directional per-constraint erosion
+analysis: for each half-space of the LOS corridor, the rotation-induced
+apparent velocity $v_{\rm rot} = [\omega\,y_B,\; -\omega\,x_B,\; 0]^T$
+determines whether that constraint is eroding or gaining margin.
+Only eroding constraints contribute settling-time drift
+$\delta_i = \frac{1}{2}\dot{s}_i^2/a_{\max}$.
+This yields asymmetric, nested inner approximations of the persistently
+feasible set---correctly capturing the physical asymmetry introduced by the
+rotation direction---and provides actionable guidance for mission planners
+beyond what Monte Carlo alone can offer.
+
+Planned future work includes:
+\begin{itemize}[leftmargin=1.4em]
+  \item formal backward-reachable set computation via polyhedral pre-set
+    iteration for the time-varying constraint polytope,
+  \item extension to non-zero initial velocity ($v_0 \ne 0$),
+  \item robustness margins for navigation uncertainty and unmodelled dynamics.
+\end{itemize}
+
+\end{document}

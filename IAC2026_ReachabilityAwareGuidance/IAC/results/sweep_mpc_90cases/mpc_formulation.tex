@@ -1,0 +1,286 @@
+% MPC Formulation for Proximity Approach to a Tumbling Target
+% Auto-generated from run_sweep_mpc_90cases.py
+
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,bm}
+\usepackage{booktabs}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+
+\newcommand{\vx}{\bm{x}}
+\newcommand{\vu}{\bm{u}}
+\newcommand{\vr}{\bm{r}}
+\newcommand{\vv}{\bm{v}}
+\newcommand{\vs}{\bm{s}}
+
+\begin{document}
+
+\section*{MPC Formulation: Proximity Approach to a Tumbling Target}
+
+%% ============================================================
+\subsection*{1. Relative Dynamics (CWH / Hill--Clohessy--Wiltshire)}
+
+The chaser--target relative motion is modelled with the linearised
+Clohessy--Wiltshire--Hill (CWH) equations in the target-centred LVLH frame.
+The continuous-time state $\vx = [x,\,y,\,z,\,\dot x,\,\dot y,\,\dot z]^\top$
+evolves as
+\begin{equation}\label{eq:cwh}
+\dot{\vx} = A_c\,\vx + B_c\,\vu,
+\end{equation}
+where
+\[
+A_c =
+\begin{bmatrix}
+0 & 0 & 0 & 1 & 0 & 0 \\
+0 & 0 & 0 & 0 & 1 & 0 \\
+0 & 0 & 0 & 0 & 0 & 1 \\
+3n^2 & 0 & 0 & 0 & 2n & 0 \\
+0 & 0 & 0 & -2n & 0 & 0 \\
+0 & 0 & -n^2 & 0 & 0 & 0
+\end{bmatrix},
+\qquad
+B_c =
+\begin{bmatrix}
+0_{3\times3} \\[2pt] I_{3}
+\end{bmatrix},
+\]
+$n = 1.1\times10^{-3}$\,rad/s is the orbital mean motion, and
+$\vu = [a_x,\,a_y,\,a_z]^\top$ is the control acceleration
+(m/s$^2$).
+
+The system is discretised via exact matrix-exponential zero-order hold:
+\begin{equation}
+\vx_{k+1} = A_d\,\vx_k + B_d\,\vu_k,
+\qquad
+\begin{bmatrix} A_d & B_d \\ 0 & I \end{bmatrix}
+= \exp\!\left(
+\begin{bmatrix} A_c & B_c \\ 0 & 0 \end{bmatrix} \Delta t
+\right),
+\end{equation}
+with $\Delta t_{\mathrm{MPC}} = 1.0$\,s for the prediction model
+and $\Delta t_{\mathrm{truth}} = 0.1$\,s for the closed-loop truth propagation
+(10 sub-steps per MPC interval).
+
+
+%% ============================================================
+\subsection*{2. Frame Transformation: LVLH $\leftrightarrow$ Body}
+
+The target tumbles about the $z$-axis at constant angular rate
+$\omega_t$.  At time $t$ the rotation angle is $\theta(t) = \omega_t\,t$.
+The body-to-LVLH rotation is $R_z(\theta)$ and we define the
+$6{\times}6$ state-rotation matrix
+\begin{equation}
+T(\theta) =
+\begin{bmatrix}
+R_z(-\theta) & 0 \\ 0 & R_z(-\theta)
+\end{bmatrix},
+\qquad
+R_z(\theta) =
+\begin{bmatrix}
+\cos\theta & -\sin\theta & 0 \\
+\sin\theta &  \cos\theta & 0 \\
+0 & 0 & 1
+\end{bmatrix},
+\end{equation}
+so that $\vx_B = T(\theta)\,\vx_L$ maps the LVLH state to the body frame.
+
+\textbf{Note:} $T(\theta)$ uses $R_z(-\theta) = R_z(\theta)^\top$ because
+it transforms \emph{from} LVLH \emph{to} body.  The cost is evaluated in
+body frame (penalising body-frame position/velocity errors), but the
+dynamics and the decision variables live in LVLH.
+
+
+%% ============================================================
+\subsection*{3. MPC Cost Function}
+
+At each MPC step the controller solves a finite-horizon QP over
+$N=30$ steps.  The decision variables are
+\[
+\bigl\{\vx_1,\ldots,\vx_N,\;
+       \vu_0,\ldots,\vu_{N-1},\;
+       \vs_0,\ldots,\vs_{N-1}\bigr\},
+\]
+where $\vs_j \in \mathbb{R}^5_{\ge 0}$ are slack variables for the
+soft LOS constraints.
+
+The cost is
+\begin{equation}\label{eq:cost}
+\boxed{
+J = \underbrace{\sum_{j=1}^{N-1}
+       \vx_j^\top T_j^\top\, Q\, T_j\, \vx_j
+     + \vx_N^\top T_N^\top\, P\, T_N\, \vx_N}_{\text{state cost (body frame)}}
+   + \underbrace{\sum_{j=0}^{N-1}
+       r_{\Delta u}\,\|\Delta\vu_j\|^2}_{\text{control smoothing}}
+   + \underbrace{\sum_{j=0}^{N-1}
+       w_s\bigl(\|\vs_j\|^2 + \bm{1}^\top \vs_j\bigr)}_{\text{constraint softening}}
+}
+\end{equation}
+where:
+\begin{itemize}
+\item $T_j = T\bigl(\omega_t(t_{\mathrm{now}} + j\,\Delta t)\bigr)$
+      rotates LVLH state to body frame at the predicted time of step~$j$.
+\item $\Delta\vu_j = \vu_j - \vu_{j-1}$, with $\vu_{-1} = \vu_{\mathrm{prev}}$
+      (previous applied control).
+\item $P$ is the DARE terminal cost satisfying
+      $P = A_d^\top P\, A_d - A_d^\top P\, B_d
+       (R + B_d^\top P\, B_d)^{-1} B_d^\top P\, A_d + Q$,
+      with $R = r_{\Delta u}\,I_3$.
+\item $w_s = w_{\mathrm{slack}} \cdot (a_{\max}/0.10)$ scales the
+      penalty to the thrust level for numerical conditioning.
+\end{itemize}
+
+\paragraph{Cost variant A (position $+$ $\Delta u$):}
+\[
+Q_A = \operatorname{diag}(5,\;50,\;5,\;0,\;0,\;0),
+\qquad
+r_{\Delta u} = 30.
+\]
+Only body-frame position error is penalised; the $y_B$ axis (docking
+direction) is weighted $10\times$ more than $x_B$ and $z_B$.
+There is \emph{no} velocity penalty and \emph{no} direct control penalty.
+
+\paragraph{Cost variant B (position $+$ velocity $+$ $\Delta u$):}
+\[
+Q_B = \operatorname{diag}(5,\;50,\;5,\;2,\;10,\;2),
+\qquad
+r_{\Delta u} = 30.
+\]
+Same as Cost~A but adds body-frame velocity error penalties.
+
+\bigskip
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+Weight & Cost A & Cost B \\
+\midrule
+$q_{x_B}$ & 5 & 5 \\
+$q_{y_B}$ & 50 & 50 \\
+$q_{z_B}$ & 5 & 5 \\
+$q_{\dot x_B}$ & 0 & 2 \\
+$q_{\dot y_B}$ & 0 & 10 \\
+$q_{\dot z_B}$ & 0 & 2 \\
+$r_{\Delta u}$ & 30 & 30 \\
+$w_{\mathrm{slack}}$ & $10^4$ & $10^4$ \\
+Direct $\|\vu\|^2$ penalty & 0 & 0 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+
+%% ============================================================
+\subsection*{4. Line-of-Sight (LOS) Cone Constraint}
+
+The approach corridor is defined in the \emph{target body frame} as a
+polyhedral cone (frustum) around the $+y_B$ docking axis.  Five
+half-plane constraints enforce:
+\begin{align}
+y_B &\ge y_{\min}, \label{eq:los1}\\
+|x_B| &\le x_0 + c_x\,(y_B - y_{\min}), \label{eq:los2}\\
+|z_B| &\le z_0 + c_z\,(y_B - y_{\min}), \label{eq:los3}
+\end{align}
+with parameters $y_{\min} = 0.5$\,m (hold radius),
+$x_0 = z_0 = 2.5$\,m (cone base half-width),
+$c_x = c_z = 1.5$ (cone slope).
+
+In matrix form (position-only, body frame):
+\begin{equation}
+H_{\mathrm{LOS}}\,\vr_B \le \bm{b}_{\mathrm{LOS}},
+\end{equation}
+\[
+H_{\mathrm{LOS}} =
+\begin{bmatrix}
+ 0 & -1 &  0 \\
+ 1 & -c_x &  0 \\
+-1 & -c_x &  0 \\
+ 0 & -c_z &  1 \\
+ 0 & -c_z & -1
+\end{bmatrix},
+\quad
+\bm{b}_{\mathrm{LOS}} =
+\begin{bmatrix}
+-y_{\min} \\
+x_0 - c_x\,y_{\min} \\
+x_0 - c_x\,y_{\min} \\
+z_0 - c_z\,y_{\min} \\
+z_0 - c_z\,y_{\min}
+\end{bmatrix}
+=
+\begin{bmatrix}
+-0.50 \\
+1.75 \\
+1.75 \\
+1.75 \\
+1.75
+\end{bmatrix}.
+\]
+
+Since the LVLH position is $\vr_L$ and $\vr_B = R_z(-\theta)^\top\,\vr_L
+= R_z(\theta)^\top\,\vr_L$, the constraint at prediction step~$j$ becomes
+\begin{equation}\label{eq:los_lvlh}
+\underbrace{H_{\mathrm{LOS}}\,R_z(\theta_j)^\top}_{=:\,H_j}\;\vr_{L,j}
+\;\le\;
+\bm{b}_{\mathrm{LOS}} - \epsilon_{\mathrm{margin}} + \vs_j,
+\qquad \vs_j \ge 0,
+\end{equation}
+where $\theta_j = \omega_t\,(t_{\mathrm{now}} + j\,\Delta t)$ and
+$\epsilon_{\mathrm{margin}} = 0.05$\,m provides inter-sample rotation safety.
+The slack $\vs_j$ is penalised in the cost~\eqref{eq:cost} via quadratic and
+linear terms.
+
+
+%% ============================================================
+\subsection*{5. Input (Thrust) Constraint}
+
+Component-wise box constraint:
+\begin{equation}
+-a_{\max} \le u_i \le a_{\max},
+\qquad i \in \{x,\,y,\,z\},
+\end{equation}
+where $a_{\max} \in \{0.10,\;0.06,\;0.02\}$\,m/s$^2$.
+
+There is \emph{no} total impulse constraint; the only limit on fuel
+expenditure comes from the finite simulation time (600\,s) and the
+per-component thrust bound.
+
+%% ============================================================
+\subsection*{6. Synchronisation Radius}
+
+A key feasibility indicator is the \emph{synchronisation radius},
+\begin{equation}
+r_{\mathrm{sync}} = \frac{2\,a_{\max}}{\omega_t^2}.
+\end{equation}
+This is the maximum distance at which the chaser can sustain
+co-rotation with the tumbling target.  When the initial range
+$y_{\mathrm{lim}} > r_{\mathrm{sync}}$, docking is generally infeasible.
+
+
+%% ============================================================
+\subsection*{7. QP Formulation Summary}
+
+Collecting all terms, the QP solved at each MPC step is:
+\begin{align}
+\min_{\vx,\,\vu,\,\vs} \quad & J \text{ as in~\eqref{eq:cost}} \\[4pt]
+\text{s.t.} \quad
+& \vx_{j} = A_d\,\vx_{j-1} + B_d\,\vu_j,
+  && j = 1,\ldots,N, \quad \vx_0 = \vx_{\mathrm{current}} \\
+& -a_{\max}\,\bm{1} \le \vu_j \le a_{\max}\,\bm{1},
+  && j = 0,\ldots,N{-}1 \\
+& H_j\,\vr_{L,j} \le \bm{b}_{\mathrm{LOS}} - \epsilon + \vs_j,
+  && j = 1,\ldots,N \\
+& \vs_j \ge 0,
+  && j = 1,\ldots,N
+\end{align}
+
+\paragraph{Solver:} OSQP (Operator Splitting QP),
+$\epsilon_{\mathrm{abs}} = \epsilon_{\mathrm{rel}} = 10^{-4}$,
+max iter $= 4000$, polish~$=$~true.
+The Hessian is normalised by $\max|\mathrm{diag}(P)|$ for conditioning.
+
+\paragraph{Fallback:} If the QP is infeasible, a braking controller is applied:
+$\vu = -\frac{a_{\max}}{2}\,\hat{\vr} - \frac{a_{\max}}{2}\,\hat{\vv}$
+(decelerate towards origin and damp velocity).
+
+\paragraph{Docking criterion:}
+$\|\vr\| \le 0.5$\,m and $\|\vv\| \le 0.05$\,m/s.
+
+\end{document}

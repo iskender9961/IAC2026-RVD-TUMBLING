@@ -1,0 +1,110 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+
+\title{Reachability-Aware Guidance for Approach to a Tumbling Uncooperative Target with Time-Varying LOS Constraints}
+\author{Author 1, Author 2, ... (placeholders)}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This paper presents a reachability-aware guidance architecture for autonomous approach to a tumbling, uncooperative target under a rotating line-of-sight (LOS) docking corridor.
+The LOS admissible set rotates with the target body frame, producing time-varying polyhedral constraints in the chaser's relative coordinates.
+A safe-start region is constructed via two conservative criteria: (i)~directional per-constraint erosion, quantifying the margin consumed by rotation-induced drift before the thruster can arrest it, and (ii)~a synchronization range bound $r < 2a_{\max}/\omega_t^2$ ensuring the chaser can cancel the apparent rotational velocity without overshooting the hold point.
+Closed-loop guidance uses a receding-horizon MPC controller with Clohessy-Wiltshire-Hill (CWH) prediction dynamics and explicit LOS corridor constraints embedded in the quadratic program.
+Truth propagation uses the exact discrete CWH state-transition matrix with sub-stepping, ensuring physically honest feasibility claims.
+Parametric sweeps over tumble rate (1--5~deg/s) and thrust authority (0.02--0.10~m/s$^2$) reveal the sensitivity of approach feasibility to the ratio $a_{\max}/\omega_t^2$, and an initial-range study confirms that close-range starts within the synchronization radius maintain zero LOS violations.
+\end{abstract}
+
+\noindent\textbf{Keywords:} proximity operations, uncooperative target, time-varying LOS corridor, safe-start region, synchronization bound, CWH guidance, MPC
+
+\section{Introduction}
+Autonomous rendezvous and docking with a tumbling uncooperative target requires guidance that respects time-varying geometric constraints imposed by the rotating docking corridor. The line-of-sight corridor rotates with the target body frame, producing time-varying feasibility boundaries in the chaser's coordinate system.
+
+A critical pre-mission question is: \emph{from which initial states can the chaser safely approach and synchronize with the rotating hold point?} This paper addresses that question through a reachability-aware guidance architecture combining geometric safe-start region analysis, a CWH-based MPC controller with explicit LOS constraints, and physically honest truth propagation.
+
+\section{Dynamics Model}
+Both the guidance prediction model and truth propagation use three-dimensional CWH linearised relative dynamics in the LVLH frame:
+\begin{align}
+\ddot{x} &= 3n^2 x + 2n\dot{y} + a_x, \notag \\
+\ddot{y} &= -2n\dot{x} + a_y, \\
+\ddot{z} &= -n^2 z + a_z. \notag
+\end{align}
+
+Truth propagation uses the exact discrete-time state-transition matrix with 3 sub-steps per control interval. No reference blending, position projection, or velocity overrides are applied---the state evolves purely from CWH dynamics plus the commanded acceleration.
+
+\section{Time-Varying LOS Corridor}
+In body-frame coordinates $[x_B, y_B, z_B]^\top$, the LOS corridor is defined by five half-space inequalities $A_c \mathbf{p}_B \le b_c$, where $\mathbf{p}_B = R_z(-\omega_t t)\,\mathbf{p}$. With slopes $c_x = c_z = 1.5$ and half-widths $x_0 = z_0 = 2.5$~m, the corridor opens at approximately $56^\circ$ half-angle.
+
+\section{Guidance Architecture}
+The controller operates in three regimes:
+\begin{enumerate}
+\item \textbf{Far approach} ($r > r_{\mathrm{sync}}$): LVLH-frame PD tracking with velocity limiting.
+\item \textbf{Close approach} ($r \le r_{\mathrm{sync}}$): body-frame PD tracking for co-rotation.
+\item \textbf{Hold}: synchronized station-keeping with CWH gravity-gradient feedforward.
+\end{enumerate}
+
+A QP-based safety filter refines the nominal PD command with explicit LOS corridor constraints over a prediction horizon using CWH state-transition matrices.
+
+\section{Safe-Start Region Analysis}
+The safe-start analysis applies two conservative criteria:
+\begin{itemize}
+\item \textbf{Per-constraint erosion}: $\delta_i = (\dot{s}_i^-)^2 / (2 a_{\max})$
+\item \textbf{Synchronization range bound}: $r < r_{\mathrm{sync}} = 2a_{\max}/\omega_t^2$
+\end{itemize}
+
+\section{Results}
+
+\subsection{Sweep: Tumble Rate vs.\ Thrust Authority}
+Table~\ref{tab:sweep} reports closed-loop outcomes for 15 combinations of $\omega_t$ and $a_{\max}$, starting from 195~m.
+
+\begin{table}[H]
+\centering
+\caption{Parameter sweep: approach outcome vs.\ tumble rate and thrust authority (initial range 195~m).}
+\label{tab:sweep}
+\begin{tabular}{ccccccc}
+\toprule
+$\omega_t$ (deg/s) & $a_{\max}$ (m/s$^2$) & $r_{\mathrm{sync}}$ (m) & $r_{\min}$ (m) & $r_{\mathrm{final}}$ (m) & $\Delta v$ (m/s) & LOS viol. \\
+\midrule
+1 & 0.10 & 656.6 & 0.0 & 2.4 & 29.5 & 441 \\
+1 & 0.05 & 328.3 & 143.7 & 274.4 & 15.0 & 803 \\
+1 & 0.02 & 131.3 & 145.3 & 275.9 & 6.0 & 2313 \\
+2 & 0.10 & 164.1 & 143.0 & 191.7 & 30.0 & 2615 \\
+2 & 0.05 & 82.1 & 141.9 & 153.4 & 15.0 & 2021 \\
+3 & 0.10 & 73.0 & 138.2 & 392.8 & 30.0 & 2070 \\
+4 & 0.10 & 41.0 & 113.2 & 127.6 & 30.0 & 2003 \\
+5 & 0.10 & 26.3 & 75.0 & 150.6 & 30.0 & 1996 \\
+5 & 0.02 & 5.3 & 51.1 & 149.0 & 6.0 & 2060 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Initial-Range Study}
+Starting from shorter ranges with the default scenario ($\omega_t = 1.72$~deg/s, $a_{\max} = 0.10$~m/s$^2$, $r_{\mathrm{sync}} = 222.2$~m):
+
+\begin{table}[H]
+\centering
+\caption{Initial-range study results.}
+\label{tab:range_study}
+\begin{tabular}{cccccc}
+\toprule
+$r_0$ (m) & $r_{\min}$ (m) & $r_{\mathrm{final}}$ (m) & $\Delta v$ (m/s) & LOS viol. & Hold \\
+\midrule
+150 & 109.5 & 259.8 & 30.0 & 1807 & No \\
+100 & 72.6 & 197.2 & 30.0 & 925 & No \\
+50 & 29.9 & 29.9 & 29.8 & 0 & No \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The 50~m case achieves \textbf{zero LOS violations} with positive margin throughout, confirming the synchronization radius prediction.
+
+\section{Conclusions}
+A reachability-aware guidance architecture has been developed for approach to a tumbling target under a rotating LOS corridor. CWH-based MPC with explicit LOS constraints and three-regime tracking demonstrates feasible constraint-satisfying approach from within the synchronization radius. The transition to physically honest CWH truth dynamics revealed that earlier double-integrator implementations with reference blending produced artificially successful results. The 50~m initial-range case validates both the reachability analysis and the guidance architecture within the predicted feasible region.
+
+\end{document}

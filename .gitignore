@@ -16,12 +16,25 @@ results/*.mp4
 Thumbs.db
 .DS_Store
 
-# LaTeX build artifacts
-docs/*.aux
-docs/*.log
-docs/*.out
-docs/*.toc
-docs/*.synctex*
-docs/*.fls
-docs/*.fdb_latexmk
+# LaTeX build artifacts (all paper directories)
+*.aux
+*.log
+*.out
+*.toc
+*.synctex*
+*.fls
+*.fdb_latexmk
+*.bbl
+*.blg
+*.nav
+*.snm
+*.vrb
+*.spl
+
+# Compiled PDFs (rebuild from source)
+paper_acta/*.pdf
+presentation_iac2026/*.pdf
 docs/*.pdf
+
+# MATLAB data outputs (rebuild from scripts)
+data/*.mat

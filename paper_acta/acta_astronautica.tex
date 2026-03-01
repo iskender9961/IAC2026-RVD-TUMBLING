@@ -309,6 +309,8 @@ ODE tolerances & $10^{-10}$/$10^{-12}$ & $10^{-8}$/$10^{-10}$ \\
 
 The MC configuration uses asymmetric $R_{\Delta u}$ (heavier penalty on radial/cross-track input rates) and shorter horizon to balance fidelity with computational cost across 3\,900 simulations.
 
+\paragraph{Solver implementation.}
+All QP instances are solved with OSQP v0.6~\cite{Stellato2020}, an operator-splitting (ADMM) solver for convex quadratic programs.  Settings: absolute and relative tolerances $\epsilon_{\mathrm{abs}} = \epsilon_{\mathrm{rel}} = 10^{-5}$, solution polishing enabled, adaptive step-size selection (\texttt{adaptive\_rho}), and warm-starting across consecutive MPC steps.  Because the per-step finite-difference linearisation alters the constraint matrix sparsity pattern, the OSQP problem object is rebuilt from scratch at each control step rather than updated in place.  Infeasibility is detected via the OSQP primal-infeasibility certificate; if the solver returns a status other than \texttt{solved} or \texttt{solved\_inaccurate}, the simulation records the status and terminates the run at that step.  The first-step input is then set to zero and the trajectory is classified as infeasible from that initial condition.
 
 %% ========================================================================
 \section{Guidance Architecture}
@@ -544,17 +546,19 @@ Rather than a single combined grid, individual MC feasibility maps are presented
 
 \subsection{Closed-Loop MPC Outcomes}
 
+To illustrate the difficulty of approaches that begin \emph{outside} the analytically certified safe-start region, Table~\ref{tab:mpc_results} presents closed-loop results from a single fixed initial position $\mathbf{r}_0 = [0, 195, 0]^\top$~m, which lies near the boundary or outside the safe regions for most parameter combinations.  ``LOS viol.''\ counts the number of truth-simulation time steps at which the chaser position violates at least one polyhedral cone constraint by more than $\epsilon = 10^{-3}$~m; all steps are counted, including those after the first violation.
+
 \begin{table}[H]
 \centering
-\caption{Closed-loop approach outcomes from $r_0 = 195$~m.}
+\caption{Closed-loop approach outcomes from $\mathbf{r}_0 = [0, 195, 0]^\top$~m.  The initial range exceeds the safe-start region boundary for all but the mildest cases.  LOS viol.\ = number of truth-simulation steps with a cone-constraint violation ($>\epsilon$).  All five runs show violations because the IC lies outside the certified nominal safe-start set $\mathcal{X}_{\mathrm{nom}}$ at these parameter combinations (cf.\ Table~\ref{tab:nominal}).}
 \label{tab:mpc_results}
 \begin{tabular}{cccccl}
 \toprule
-$\omega_t$ & $a_{\max}$ & $r_{\mathrm{sync}}$ & $\Delta v$ & LOS viol. & Status \\
+$\omega_t$ & $a_{\max}$ & $r_{\mathrm{sync}}$ & $\Delta v$ & LOS viol. & Remark \\
 (deg/s) & (m/s$^2$) & (m) & (m/s) & & \\
 \midrule
-1 & 0.10 & 657 & 29.5 & 441 & $r_0 < r_{\mathrm{sync}}$ \\
-1 & 0.05 & 328 & 15.0 & 803 & $r_0 < r_{\mathrm{sync}}$ \\
+1 & 0.10 & 657 & 29.5 & 441 & $r_0 < r_{\mathrm{sync}}$; IC outside $\mathcal{X}_{\mathrm{nom}}$ \\
+1 & 0.05 & 328 & 15.0 & 803 & $r_0 < r_{\mathrm{sync}}$; IC outside $\mathcal{X}_{\mathrm{nom}}$ \\
 2 & 0.10 & 164 & 30.0 & 2615 & $r_0 > r_{\mathrm{sync}}$ \\
 3 & 0.10 & 73 & 30.0 & 2070 & $r_0 > r_{\mathrm{sync}}$ \\
 5 & 0.10 & 26 & 30.0 & 1996 & $r_0 > r_{\mathrm{sync}}$ \\
@@ -562,7 +566,7 @@ $\omega_t$ & $a_{\max}$ & $r_{\mathrm{sync}}$ & $\Delta v$ & LOS viol. & Status 
 \end{tabular}
 \end{table}
 
-When $r_0 < r_{\mathrm{sync}}$, the chaser can co-rotate with the cone from the start and LOS violations remain bounded.  When $r_0 > r_{\mathrm{sync}}$, the initial rotational velocity exceeds the chaser's braking capacity, producing unavoidable transient violations until the range decreases below $r_{\mathrm{sync}}$.  Starts from within $r_{\mathrm{sync}}$ with sufficient thrust achieve \textbf{zero LOS violations}.
+Three observations follow.  First, $r_{\mathrm{sync}}$ is a necessary but not sufficient condition for zero violations: the first two rows satisfy $r_0 < r_{\mathrm{sync}}$ yet still incur violations because the initial condition lies outside the certified safe-start region $\mathcal{X}_{\mathrm{nom}}$ (cf.\ Table~\ref{tab:nominal}: at $\omega_t = 1$~deg/s, $a_{\max} = 0.10$, the nominal safe fraction is 66.6\%, and $r_0 = 195$~m is outside that region).  Second, for $r_0 > r_{\mathrm{sync}}$, the rotational apparent velocity exceeds the chaser's braking capacity, producing hundreds to thousands of violations.  Third, when the IC lies \emph{within} both $r_{\mathrm{sync}}$ and the analytical safe-start set---as in the Monte~Carlo campaign (Section~\ref{sec:mc}) and the 3D tumbling scenario (Section~\ref{sec:3d_tumble})---the MPC achieves zero LOS violations, confirming that the safe-start certification is operationally meaningful.
 
 \subsection{Computational Efficiency}
 
@@ -1067,7 +1071,7 @@ of the framework developed in this paper.
 \item $a_{\max}/\omega_t^2$ is the universal scaling parameter for rotating-corridor feasibility.
 \item Analytical certification: 53~s vs.\ 2--4~h MC ($\sim$200$\times$ speedup).
 \item Nonlinear truth propagation reveals double-integrator artefacts.
-\item Approach within $r_{\mathrm{sync}} = 2a_{\max}/\omega_t^2$ achieves zero LOS violations.
+\item Approach from within the certified safe-start set \emph{and} the synchronisation range $r_{\mathrm{sync}} = 2a_{\max}/\omega_t^2$ achieves zero LOS violations; starting outside the certified region produces violations even when $r_0 < r_{\mathrm{sync}}$.
 \item Extension to elliptic orbits via the Yamanaka--Ankersen STM shows that the erosion-based safe region is invariant to eccentricity at LEO, validating CWH as a conservative baseline.
 \item Benchmarking against tube-based robust MPC~\cite{Dong2020,Quartullo2024} and the reachability-guaranteed OCP~\cite{Faraci2025} demonstrates that our erosion-based certification achieves $\sim$34$\times$ speedup over NLP-based methods while providing complementary corridor safety guarantees.
 \item Three-dimensional tumbling validation with full Euler dynamics and intermediate-axis instability ($120^\circ$ spin-axis precession) confirms that the body-frame MPC formulation handles arbitrary 3D rotations with zero LOS violations, and that $r_{\mathrm{sync}} = 2a_{\max}/\|\boldsymbol{\omega}\|^2$ generalises directly as the synchronisation bound.

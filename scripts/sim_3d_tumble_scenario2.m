@@ -172,13 +172,14 @@ for k = 1:N_steps
     [Ad, Bd] = linearise_3d_body(x_tb, omega_body, n_orb, dt);
 
     % Solve MPC
-    [u_opt, qp_status] = solve_mpc_qp(Ad, Bd, x_tb, x_ref, u_prev, ...
+    [u_opt, qp_status, qp_Jopt] = solve_mpc_qp(Ad, Bd, x_tb, x_ref, u_prev, ...
         Q, QN, Ru, Rdu, a_max, cone_k, y_min, n_faces, Np, nx, nu);
     log_status{k} = qp_status;
 
-    % Cost
-    x_err = x_tb - x_ref(:,1);
-    log_cost(k) = x_err' * Q * x_err + u_opt' * Ru * u_opt;
+    % Cost — true MPC objective value computed from z*:
+    %   J = sum_{j=0}^{Np-1} [(x_j-xr_j)'Q(x_j-xr_j) + u_j'Ru u_j
+    %       + du_j'Rdu du_j] + (x_Np-xr_Np)'QN(x_Np-xr_Np)
+    log_cost(k) = qp_Jopt;
 
     % Clamp
     u_tb_k = max(-a_max, min(a_max, u_opt));
@@ -497,11 +498,11 @@ fprintf('  fig_summary\n');
 %  SECTION 8 — INDIVIDUAL JOURNAL-QUALITY PLOTS (PNG + PDF)
 %  ====================================================================
 
-% --- 8a. MPC Cost History ---
+% --- 8a. MPC Cost History (true QP objective) ---
 fig5 = figure('Position',[100 100 800 400],'Color','w');
 semilogy(t_u, log_cost, 'b-','LineWidth',1.5);
-xlabel('Time [s]'); ylabel('Stage Cost J_k');
-title('MPC Stage Cost History (Scenario 2)');
+xlabel('Time [s]'); ylabel('MPC Objective J_k^*');
+title('MPC Objective Value (Full Horizon, Scenario 2)');
 grid on; set(gca,'FontSize',12);
 saveas(fig5, fullfile(out_dir,'fig_cost_history.png'));
 exportgraphics(fig5, fullfile(out_dir,'fig_cost_history.pdf'),'ContentType','vector');
@@ -776,7 +777,7 @@ function [ok, mrg] = check_los_fn(r, ck, ym, nf)
 end
 
 % ---- MPC QP (quadprog) ----
-function [u, st] = solve_mpc_qp(Ad,Bd,x0,xr,up,Q,QN,Ru,Rdu,am,ck,ym,nf,Np,nx,nu)
+function [u, st, Jopt] = solve_mpc_qp(Ad,Bd,x0,xr,up,Q,QN,Ru,Rdu,am,ck,ym,nf,Np,nx,nu)
     nxt=(Np+1)*nx; nut=Np*nu; nv=nxt+nut;
     H=sparse(nv,nv); f=zeros(nv,1);
     for j=0:Np
@@ -825,8 +826,29 @@ function [u, st] = solve_mpc_qp(Ad,Bd,x0,xr,up,Q,QN,Ru,Rdu,am,ck,ym,nf,Np,nx,nu)
     opts=optimoptions('quadprog','Display','off','MaxIter',2000,...
         'OptimalityTolerance',1e-6,'ConstraintTolerance',1e-6);
     [z,~,ef]=quadprog(H,f,[Ai;Al],[bi;bl],Ae,be,[],[],[],opts);
-    if ef>0, st='solved'; u=z(nxt+(1:nu));
-    else,    st=sprintf('fail(%d)',ef); u=zeros(nu,1); end
+    if ef>0
+        st='solved'; u=z(nxt+(1:nu));
+        % Compute true MPC objective from the optimal decision vector z*:
+        %   J = sum_{j=0}^{Np-1} [ (x_j-xr_j)'Q(x_j-xr_j) + u_j'Ru*u_j
+        %        + du_j'Rdu*du_j ] + (x_Np-xr_Np)'QN(x_Np-xr_Np)
+        Jopt = 0;
+        for jj = 0:Np
+            xj = z(jj*nx+(1:nx));
+            ej = xj - xr(:,jj+1);
+            if jj < Np
+                Jopt = Jopt + ej'*Q*ej;
+                uj = z(nxt+jj*nu+(1:nu));
+                Jopt = Jopt + uj'*Ru*uj;
+                if jj == 0, duj = uj - up;
+                else,       duj = uj - z(nxt+(jj-1)*nu+(1:nu)); end
+                Jopt = Jopt + duj'*Rdu*duj;
+            else
+                Jopt = Jopt + ej'*QN*ej;
+            end
+        end
+    else
+        st=sprintf('fail(%d)',ef); u=zeros(nu,1); Jopt=NaN;
+    end
 end
 
 % ---- Chaser attitude: +y toward target (origin) ----

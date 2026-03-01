@@ -467,7 +467,7 @@ $\omega_t$ (deg/s) & $a_{\max}\!=\!0.20$ & $0.10$ & $0.05$ & $0.02$ \\
 \end{tabular}
 \end{table}
 
-The safe fraction decreases rapidly with tumble rate due to the $\omega_t^{-2}$ dependence of $r_{\mathrm{sync}}$ and the quadratic growth of the erosion term.  At $\omega_t = 1$~deg/s with $a_{\max} = 0.20$~m/s$^2$, 80.1\% of the cone is certified safe; at $\omega_t = 5$~deg/s with $a_{\max} = 0.02$~m/s$^2$, the safe region shrinks to near zero.
+The safe fraction decreases rapidly with tumble rate due to the $\omega_t^{-2}$ dependence of $r_{\mathrm{sync}}$ and the quadratic growth of the erosion term.  At $\omega_t = 1$~deg/s with $a_{\max} = 0.20$~m/s$^2$, 80.1\% of the cone is certified safe; at $\omega_t = 5$~deg/s with $a_{\max} = 0.02$~m/s$^2$, the safe region shrinks to near zero.  Figure~\ref{fig:nominal_grid} visualises this trend: the green safe region contracts from nearly the full cone (top-left) to a narrow strip near the docking axis (bottom-right) as the governing ratio $a_{\max}/\omega_t^2$ decreases.
 
 \begin{figure}[H]
 \centering
@@ -516,6 +516,8 @@ $\omega_t$ & $a_{\max}$ & Nom & Stoch & Rob & MC \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+Figure~\ref{fig:comparison} shows the spatial distribution of the three nested sets for all 20 parameter combinations.  The progressive constraint tightening from nominal to robust is visible as concentric contraction of the safe region, with the gap between sets widening at higher tumble rates where disturbance-induced erosion is most severe.
 
 \begin{figure}[H]
 \centering
@@ -746,7 +748,7 @@ scenario.  This modest increase reduces the safe fraction from 0.7\% to 0.5\%
 at $a_{\max} = 0.10$~m/s$^2$---a small effect because the erosion is already
 dominated by the base tumble rate.  At larger uncertainties ($\Delta\omega = 3$~deg/s),
 the safe region shrinks to 0.1\%, demonstrating the sensitivity of corridor
-feasibility to tumble-rate knowledge at high $\omega_t$.
+feasibility to tumble-rate knowledge at high $\omega_t$.  Figure~\ref{fig:faraci_maps} shows the spatial safe-start maps at $\omega_t = 4$~deg/s for all four thrust levels, illustrating how the feasible region collapses toward the docking axis as $a_{\max}$ decreases.  Figure~\ref{fig:faraci_scaling} confirms the universal scaling collapse: safe-start coverage versus $a_{\max}/\omega_t^2$ for tumble rates 1--6~deg/s falls on a single curve, extending the result of Section~\ref{sec:discussion} to higher tumble rates.
 
 \begin{figure}[H]
 \centering
@@ -828,12 +830,8 @@ precess through large angles, producing visually dramatic tumbling even
 at moderate angular rates.
 
 The target's attitude quaternion $\mathbf{q}_{B/I}$ (scalar-first convention)
-is propagated via:
-\begin{equation}
-  \dot{\mathbf{q}}_{B/I}
-  = \tfrac{1}{2}\,\mathbf{q}_{B/I} \otimes [0;\;\boldsymbol{\omega}_B],
-\label{eq:quat_prop}
-\end{equation}
+is propagated via~\eqref{eq:quat_prop}, now with the time-varying
+$\boldsymbol{\omega}_B(t)$ from~\eqref{eq:euler_torquefree},
 using a fourth-order Runge--Kutta integrator with unit-norm
 renormalisation at each step.  The rotation matrix
 $\mat{R}_{I \leftarrow B}(\mathbf{q})$ maps body-frame vectors to the ECI
@@ -945,26 +943,16 @@ is along the $y_B$ docking axis to within 10~m.
 \label{fig:3d_trajectory}
 \end{figure}
 
-Figure~\ref{fig:3d_cost} shows the MPC stage cost
-$J_k = (\mathbf{x}_k - \mathbf{x}_{\mathrm{ref}})^\top \mat{Q}\,
-(\mathbf{x}_k - \mathbf{x}_{\mathrm{ref}}) +
-\mathbf{u}_k^\top \mat{R}_u\,\mathbf{u}_k$ over the 400-step approach.
-The cost peaks during the initial transient when the chaser is far from
-the docking axis, then decays over three orders of magnitude as the
-trajectory converges.  The oscillatory structure reflects the polhode
-period of the tumbling body frame: each time the body frame rotates
-through a large-precession phase ($\sim$120~s period), the MPC must
-expend additional effort to track the moving docking axis, producing
-local cost peaks that are absent in the planar (single-axis) case.
+Figure~\ref{fig:3d_cost} shows the optimal MPC objective value
+$J_k^* = \sum_{j=0}^{N_p-1}\bigl[\|\hat{\mathbf{x}}_j - \mathbf{x}^{\mathrm{ref}}_j\|_Q^2 + \|\mathbf{u}_j\|_{R_u}^2 + \|\Delta\mathbf{u}_j\|_{R_{\Delta u}}^2\bigr] + \|\hat{\mathbf{x}}_{N_p} - \mathbf{x}^{\mathrm{ref}}_{N_p}\|_{Q_N}^2$,
+evaluated from the QP decision vector $\mathbf{z}^*$ returned by the solver at each control step.
+The objective decays over eight orders of magnitude (${\sim}10^6$ to ${\sim}10^{-2}$) as the chaser converges.
+The steep initial drop ($t < 80$~s) corresponds to the alignment and corridor-entry phase, after which the trajectory is well within the LOS cone and the objective decreases gradually during the station-keeping phase.
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.95\columnwidth]{fig_cost_history.png}
-\caption{MPC stage cost history for the 3D tumbling approach.
-  The cost decays from $\sim$10$^4$ to $\sim$10$^1$ as the chaser converges.
-  Oscillatory modulation corresponds to the polhode period of the
-  intermediate-axis instability; each precession cycle requires
-  increased control effort to maintain LOS cone compliance.}
+\caption{Full-horizon MPC objective value $J_k^*$ (log scale) for the 3D tumbling approach, computed from the QP solution at each control step.  The objective includes state-tracking~($Q$), terminal~($Q_N = 30Q$), input~($R_u$), and input-rate~($R_{\Delta u}$) penalties summed over the $N_p = 40$-step prediction horizon.  The cost decays from $\sim\!10^6$ to $\sim\!10^{-2}$ as the chaser converges onto the docking axis.}
 \label{fig:3d_cost}
 \end{figure}
 

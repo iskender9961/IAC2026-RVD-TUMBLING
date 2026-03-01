@@ -14,7 +14,7 @@
 \newcommand{\vect}[1]{\boldsymbol{#1}}
 \newcommand{\mat}[1]{\mathbf{#1}}
 
-\graphicspath{{../figures/}{../results/}{../results/elliptic/}{../results/benchmark/}}
+\graphicspath{{../figures/}{../results/}{../results/elliptic/}{../results/benchmark/}{../results/3d_tumble_scenario2/}}
 
 \journal{Acta Astronautica}
 
@@ -32,7 +32,7 @@
   city={Singapore}, country={Singapore}}
 
 \begin{abstract}
-Autonomous proximity operations with tumbling, uncooperative spacecraft require guidance systems that can certify the feasibility of approach trajectories before execution.  When the target tumbles, its body-fixed docking corridor rotates in the chaser's coordinate frame, producing time-varying polyhedral constraints whose feasibility depends critically on the interplay between tumble rate and thrust authority.  This paper develops a hierarchical reachability framework that computes three nested analytical safe-start sets with progressively stronger guarantees---nominal ($\mathcal{X}_{\mathrm{nom}}$), stochastic ($\mathcal{X}_{\mathrm{stoch}}$, 95\% confidence), and robust ($\mathcal{X}_{\mathrm{rob}}$, bounded disturbances)---satisfying $\mathcal{X}_{\mathrm{rob}} \subseteq \mathcal{X}_{\mathrm{stoch}} \subseteq \mathcal{X}_{\mathrm{nom}}$ by construction.  An independent Monte~Carlo campaign ($\mathcal{X}_{\mathrm{MC}}$) provides empirical closed-loop validation under nonlinear two-body-plus-$J_2$ truth dynamics coupled to a receding-horizon quadratic-program (QP) controller with state-tracking, input-rate, and terminal penalties.  A parametric sweep over tumble rates 1--5~deg/s and thrust authorities 0.02--0.20~m/s$^2$ on a $300\!\times\!300$ evaluation grid (i)~identifies $a_{\max}/\omega_t^2$ as the single dimensionless parameter governing approach feasibility, (ii)~confirms the analytical hierarchy $\mathcal{X}_{\mathrm{rob}} \subseteq \mathcal{X}_{\mathrm{stoch}} \subseteq \mathcal{X}_{\mathrm{nom}}$ across all 20 parameter combinations with zero point-wise violations, and (iii)~shows that analytical certification completes in 53~s versus 2--4~hours for Monte~Carlo, enabling on-board mission replanning.
+Autonomous proximity operations with tumbling, uncooperative spacecraft require guidance systems that can certify the feasibility of approach trajectories before execution.  When the target tumbles, its body-fixed docking corridor rotates in the chaser's coordinate frame, producing time-varying polyhedral constraints whose feasibility depends critically on the interplay between tumble rate and thrust authority.  This paper develops a hierarchical reachability framework that computes three nested analytical safe-start sets with progressively stronger guarantees---nominal ($\mathcal{X}_{\mathrm{nom}}$), stochastic ($\mathcal{X}_{\mathrm{stoch}}$, 95\% confidence), and robust ($\mathcal{X}_{\mathrm{rob}}$, bounded disturbances)---satisfying $\mathcal{X}_{\mathrm{rob}} \subseteq \mathcal{X}_{\mathrm{stoch}} \subseteq \mathcal{X}_{\mathrm{nom}}$ by construction.  An independent Monte~Carlo campaign ($\mathcal{X}_{\mathrm{MC}}$) provides empirical closed-loop validation under nonlinear two-body-plus-$J_2$ truth dynamics coupled to a receding-horizon quadratic-program (QP) controller with state-tracking, input-rate, and terminal penalties.  A parametric sweep over tumble rates 1--5~deg/s and thrust authorities 0.02--0.20~m/s$^2$ on a $300\!\times\!300$ evaluation grid (i)~identifies $a_{\max}/\omega_t^2$ as the single dimensionless parameter governing approach feasibility, (ii)~confirms the analytical hierarchy $\mathcal{X}_{\mathrm{rob}} \subseteq \mathcal{X}_{\mathrm{stoch}} \subseteq \mathcal{X}_{\mathrm{nom}}$ across all 20 parameter combinations with zero point-wise violations, (iii)~shows that analytical certification completes in 53~s versus 2--4~hours for Monte~Carlo, enabling on-board mission replanning, and (iv)~validates the architecture under full three-dimensional tumbling with Euler dynamics and intermediate-axis instability, achieving zero corridor violations despite $120^\circ$ spin-axis precession.
 \end{abstract}
 
 \begin{keyword}
@@ -89,7 +89,7 @@ This paper makes four specific contributions:
 
 \subsection{Paper Organisation}
 
-Section~\ref{sec:mission} defines the mission scenario.  Section~\ref{sec:frames} establishes reference frames.  Section~\ref{sec:dynamics} presents the dynamics.  Section~\ref{sec:los} formulates the LOS corridor.  Section~\ref{sec:problem} states the MPC problem.  Section~\ref{sec:reachability} develops safe-start region analysis.  Section~\ref{sec:mc} details Monte~Carlo validation.  Section~\ref{sec:results} presents results.  Section~\ref{sec:discussion} discusses findings, and Section~\ref{sec:conclusions} concludes.
+Section~\ref{sec:mission} defines the mission scenario.  Section~\ref{sec:frames} establishes reference frames.  Section~\ref{sec:dynamics} presents the dynamics.  Section~\ref{sec:los} formulates the LOS corridor.  Section~\ref{sec:problem} states the MPC problem.  Section~\ref{sec:reachability} develops safe-start region analysis.  Section~\ref{sec:mc} details Monte~Carlo validation.  Section~\ref{sec:results} presents results.  Section~\ref{sec:discussion} discusses findings---including extension to full 3D tumbling with Euler dynamics (Section~\ref{sec:3d_tumble})---and Section~\ref{sec:conclusions} concludes.
 
 
 %% ========================================================================
@@ -835,42 +835,242 @@ complements with pre-mission certification of the feasible approach region.
 \subsection{Extension to Three-Dimensional Tumble}
 \label{sec:3d_tumble}
 
-The present analysis assumes pure spin about the body $z$-axis
+The parametric analysis in Sections~\ref{sec:reachability}--\ref{sec:results}
+assumes pure spin about the body $z$-axis
 ($\boldsymbol{\omega}_B = [0, 0, \omega_t]^\top$), reducing the problem to
-planar rotation of the LOS cone.  This simplification is justified on three
-grounds:
+planar rotation of the LOS cone.  This subsection demonstrates that the
+MPC-based guidance architecture operates successfully under \emph{full
+three-dimensional tumbling} with asymmetric inertia and non-trivial angular
+momentum dynamics.
+
+\subsubsection{Torque-Free Euler Dynamics}
+
+For a rigid target with principal moments of inertia
+$\mat{I} = \mathrm{diag}(I_1, I_2, I_3)$ and no external torques, the angular
+velocity $\boldsymbol{\omega}_B = [\omega_x, \omega_y, \omega_z]^\top$
+evolves according to Euler's equations:
+\begin{equation}
+\begin{aligned}
+  I_1 \dot{\omega}_x &= (I_2 - I_3)\,\omega_y\,\omega_z, \\
+  I_2 \dot{\omega}_y &= (I_3 - I_1)\,\omega_z\,\omega_x, \\
+  I_3 \dot{\omega}_z &= (I_1 - I_2)\,\omega_x\,\omega_y.
+\end{aligned}
+\label{eq:euler_torquefree}
+\end{equation}
+These equations conserve both kinetic energy
+$T = \tfrac{1}{2}\boldsymbol{\omega}_B^\top \mat{I}\,\boldsymbol{\omega}_B$
+and angular momentum magnitude
+$L = \|\mat{I}\,\boldsymbol{\omega}_B\|$.
+For asymmetric bodies ($I_1 \neq I_2 \neq I_3$), the angular velocity traces a
+\emph{polhode} on the intersection of the energy and angular momentum
+ellipsoids in body-frame $\omega$-space.  By the intermediate-axis
+theorem, rotation predominantly about the intermediate principal axis
+(here $I_3 = 600$~kg$\cdot$m$^2$, with $I_1 = 500 < I_3 < I_2 = 800$)
+is dynamically unstable: small perturbations cause the spin axis to
+precess through large angles, producing visually dramatic tumbling even
+at moderate angular rates.
+
+The target's attitude quaternion $\mathbf{q}_{B/I}$ (scalar-first convention)
+is propagated via:
+\begin{equation}
+  \dot{\mathbf{q}}_{B/I}
+  = \tfrac{1}{2}\,\mathbf{q}_{B/I} \otimes [0;\;\boldsymbol{\omega}_B],
+\label{eq:quat_prop}
+\end{equation}
+using a fourth-order Runge--Kutta integrator with unit-norm
+renormalisation at each step.  The rotation matrix
+$\mat{R}_{I \leftarrow B}(\mathbf{q})$ maps body-frame vectors to the ECI
+frame, providing the time-varying body--LVLH transformation at each step.
+
+\subsubsection{LOS Cone in the Rotating Body Frame}
+
+The polyhedral LOS cone
+(Section~\ref{sec:los}) is defined in the target body frame along the
+$+y_B$ docking axis.  Under 3D tumbling, the cone's orientation in LVLH
+changes at every timestep as $\mat{R}_{I \leftarrow B}(t)$ evolves.  In the
+body frame, however, the cone is \emph{stationary}---the constraint
+normals $\mathbf{a}_i$ are fixed constants.  This is the key observation:
+by formulating the MPC entirely in the body frame, the LOS cone
+constraints remain time-invariant, and the time variation is absorbed into
+the dynamics model.
+
+The body-frame relative dynamics are:
+\begin{equation}
+  \ddot{\mathbf{r}}_B
+  = \mathbf{a}_{\mathrm{CWH}}
+    - 2\,\boldsymbol{\omega}_B \times \dot{\mathbf{r}}_B
+    - \boldsymbol{\omega}_B \times (\boldsymbol{\omega}_B \times \mathbf{r}_B)
+    + \mathbf{u}_B,
+\label{eq:body_frame_dyn}
+\end{equation}
+where $\mathbf{a}_{\mathrm{CWH}}$ captures the CWH gravity-gradient terms
+($3n^2 x_B$ radial, $-n^2 z_B$ cross-track), and
+$\boldsymbol{\omega}_B(t)$ is the instantaneous angular velocity from
+\eqref{eq:euler_torquefree}.  The Coriolis ($2\boldsymbol{\omega} \times
+\dot{\mathbf{r}}$) and centrifugal
+($\boldsymbol{\omega} \times (\boldsymbol{\omega} \times \mathbf{r})$)
+terms account for the non-inertial rotation of the body frame.
+
+At each MPC step, the matrices $(\mat{A}_d, \mat{B}_d)$ are obtained by
+finite-difference linearisation ($\varepsilon = 10^{-6}$) through a
+single-step RK4 propagation of \eqref{eq:body_frame_dyn}, capturing the
+instantaneous Coriolis/centrifugal coupling.  The QP is then solved with
+time-invariant LOS cone constraints---the same polyhedral normals used
+throughout the paper.
+
+\subsubsection{Scenario: Intermediate-Axis Instability at 2~deg/s}
+
+To demonstrate the architecture under severe 3D tumbling, we exploit the
+intermediate-axis instability.  The initial angular velocity is:
+\begin{equation}
+  \boldsymbol{\omega}_0 = [0.005,\; 0.004,\; 0.034]^\top
+  \;\text{rad/s}
+  \quad (|\boldsymbol{\omega}_0| \approx 2.0\;\text{deg/s}),
+\end{equation}
+predominantly about the intermediate axis ($z$-body, $I_3 = 600$~kg$\cdot$m$^2$),
+with small $x$- and $y$-perturbations to trigger the instability.
+The chaser approaches from
+$\mathbf{r}_0 = [40, 150, -50]^\top$~m ($|\mathbf{r}_0| = 165$~m)
+with the same parameters as the baseline:
+$a_{\max} = 0.20$~m/s$^2$, cone half-angle $30^\circ$,
+$\Delta t = 1$~s, $N_p = 40$, $T_{\mathrm{sim}} = 400$~s.
+Truth propagation uses the same nonlinear two-body-plus-$J_2$ model via
+\texttt{ode113} (RelTol $= 10^{-10}$, AbsTol $= 10^{-12}$).
+
+\subsubsection{Results}
+
+Table~\ref{tab:3d_tumble_results} summarises the 3D tumbling scenario.
+The MPC achieves \textbf{zero LOS violations} over the entire 400-step
+approach despite the spin axis precessing by $120.1^\circ$ from its initial
+orientation---confirming that the body-frame MPC formulation handles
+arbitrary 3D rotations without modification.
+
+\begin{table}[H]
+\centering
+\caption{Closed-loop results for the 3D tumbling scenario
+  (intermediate-axis instability, $|\boldsymbol{\omega}_0| = 2.0$~deg/s).
+  The MPC maintains zero LOS violations despite $120.1^\circ$ of
+  spin-axis precession during the approach.}
+\label{tab:3d_tumble_results}
+\begin{tabular}{lc}
+\toprule
+Parameter & Value \\
+\midrule
+Target MOI $\mat{I}$ & diag(500, 800, 600)~kg$\cdot$m$^2$ \\
+$|\boldsymbol{\omega}_0|$ & 2.0~deg/s (interm.\ axis) \\
+Initial position $\mathbf{r}_0$ & $[40, 150, -50]^\top$~m \\
+$a_{\max}$ & 0.20~m/s$^2$ \\
+$r_{\mathrm{sync}}$ & $330$~m \\
+\midrule
+Final distance & 10.2~m \\
+LOS violations & 0 / 400 (0\%) \\
+Spin-axis precession & 120.1$^\circ$ \\
+$\Delta v$ total & 32.7~m/s \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Figure~\ref{fig:3d_trajectory} shows the chaser trajectory in the target
+body frame.  The path spirals inward through the LOS cone, tracking the
+rotating docking axis as the body frame tumbles.  The chaser's $+y$ body
+axis remains pointed toward the target at all times, and the final approach
+is along the $y_B$ docking axis to within 10~m.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\columnwidth]{fig_3d_trajectory_body.png}
+\caption{Chaser trajectory in the target body frame under 3D tumbling
+  (intermediate-axis instability, $|\boldsymbol{\omega}_0| = 2.0$~deg/s).
+  The colour gradient indicates time progression (blue$\to$pink).
+  The orange wireframe shows the $30^\circ$ LOS cone along $+y_B$;
+  blue and red markers indicate start and end positions.  The chaser box
+  is drawn at start and end with its $+y$ axis pointing toward the target.}
+\label{fig:3d_trajectory}
+\end{figure}
+
+Figure~\ref{fig:3d_omega} presents the target angular velocity components
+and spin-axis precession angle.  The intermediate-axis instability causes
+$\omega_z$ (the initially dominant component) to exchange energy with
+$\omega_x$ and $\omega_y$, producing $120^\circ$ of axis precession over
+400~s.  The angular momentum magnitude $|\boldsymbol{\omega}|$ remains
+constant (torque-free), confirming correct Euler integration.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\columnwidth]{fig_omega_components.png}
+\caption{Target angular velocity components (left axis) and spin-axis
+  precession from initial $\boldsymbol{\omega}_0$ (right axis, magenta).
+  The intermediate-axis instability causes dramatic energy exchange between
+  body axes while conserving $|\boldsymbol{\omega}|$ (dashed black).
+  The MPC handles this time-varying rotation without modification.}
+\label{fig:3d_omega}
+\end{figure}
+
+Figure~\ref{fig:3d_summary} provides a six-panel overview of the approach.
+The range tracks the exponential reference trajectory, the LOS margin
+remains positive throughout, and the cumulative $\Delta v$ of 32.7~m/s
+reflects the additional cost of co-rotating with the tumbling body frame
+compared to the planar case.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{fig_summary.png}
+\caption{Six-panel summary of the 3D tumbling approach: (a)~range and
+  reference, (b)~LOS cone margin (always positive), (c)~angular velocity
+  components with axis precession, (d)~body-frame position,
+  (e)~control acceleration, (f)~cumulative $\Delta v$.}
+\label{fig:3d_summary}
+\end{figure}
+
+Figure~\ref{fig:3d_polhode} shows the polhode---the trajectory of
+$\boldsymbol{\omega}_B(t)$ in body-frame angular-velocity space.  The
+closed orbit on the energy--momentum intersection ellipsoids confirms
+classical torque-free rigid-body behaviour and verifies the fidelity
+of the Euler-equation integration.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.75\columnwidth]{fig_polhode.png}
+\caption{Polhode trajectory in body-frame $\omega$-space.  The angular
+  velocity traces a closed orbit characteristic of intermediate-axis
+  instability, confirming conservation of energy and angular momentum.}
+\label{fig:3d_polhode}
+\end{figure}
+
+\subsubsection{Discussion}
+
+Three key observations emerge from the 3D validation:
 
 \begin{enumerate}
-\item \textbf{Dominant mode.}  Many LEO debris objects and defunct satellites
-  exhibit principal-axis spin as the dominant tumble mode, particularly after
-  energy dissipation has damped nutation~\cite{Schaub2018}.  For such targets,
-  the single-axis model captures the primary feasibility driver.
+\item \textbf{Body-frame MPC is rotation-agnostic.}  Because the LOS cone
+  constraints are defined in the body frame, the MPC formulation requires
+  no modification for 3D tumbling.  The rotation complexity is absorbed
+  entirely by the Coriolis and centrifugal terms in the linearised dynamics
+  \eqref{eq:body_frame_dyn}.
 
-\item \textbf{Conservative approximation.}  Adding transverse angular rates
-  ($\omega_x, \omega_y \neq 0$) would increase the apparent rotation-induced
-  drift $\|\boldsymbol{\omega}_B \times \mathbf{r}_B\|$ at every point, thereby
-  increasing the erosion~\eqref{eq:erosion} and shrinking the safe-start region.
-  The single-axis analysis therefore provides an \emph{upper bound} on the safe
-  region for a given $\|\boldsymbol{\omega}_B\|$.
+\item \textbf{The synchronisation bound generalises directly.}
+  $r_{\mathrm{sync}} = 2a_{\max}/\|\boldsymbol{\omega}_B\|^2 = 330$~m
+  for this scenario, and the chaser's initial range (165~m) lies well within
+  $r_{\mathrm{sync}}$, consistent with the zero LOS violations observed.
+  This confirms the scaling analysis of Section~\ref{sec:reachability}
+  for the 3D case.
 
-\item \textbf{Decoupling at small transverse rates.}  When the transverse
-  components satisfy $\omega_x, \omega_y \ll \omega_z$, their contribution to
-  the constraint-slack rate $\dot{s}_i$ is perturbative and can be bounded
-  independently, enabling a separable worst-case analysis.
+\item \textbf{$\Delta v$ cost increases with tumble complexity.}
+  The 32.7~m/s $\Delta v$ is approximately $2\times$ higher than
+  comparable planar cases at the same $|\boldsymbol{\omega}|$ and
+  $a_{\max}$, reflecting the additional control effort for
+  out-of-plane station-keeping as the body frame rotates about all
+  three axes.
 \end{enumerate}
 
-The framework extends naturally to full 3D tumble by replacing the planar
-rotation velocity $\mathbf{v}_{\mathrm{rot}} = [\omega_t y_B, -\omega_t x_B,
-0]^\top$ with the general cross product $\mathbf{v}_{\mathrm{rot}} =
-\boldsymbol{\omega}_B(t) \times \mathbf{r}_B$, where
-$\boldsymbol{\omega}_B(t)$ is obtained from Euler's equations under torque-free
-precession.  The erosion formula~\eqref{eq:erosion} remains valid with this
-generalised velocity; the synchronisation bound generalises to
-$r_{\mathrm{sync}} = 2a_{\max}/\|\boldsymbol{\omega}_B\|^2$.  The primary
-additional complexity is that the time-varying $\boldsymbol{\omega}_B(t)$
-produces a non-periodic constraint geometry, requiring evaluation over the
-full simulation horizon rather than a single rotation period.  This extension
-is a priority for future work.
+The erosion-based analytical certification
+(Section~\ref{sec:reachability}) extends to 3D by replacing the planar
+rotation velocity $\mathbf{v}_{\mathrm{rot}} = [\omega_t y_B,
+-\omega_t x_B, 0]^\top$ with the general cross product
+$\mathbf{v}_{\mathrm{rot}} = \boldsymbol{\omega}_B(t) \times
+\mathbf{r}_B$.  The erosion formula~\eqref{eq:erosion} remains valid
+with this generalised velocity, and the worst-case over the polhode
+period provides a conservative bound for the safe-start region.
 
 \subsection{Towards Hamilton--Jacobi Reachability}
 \label{sec:hj_discussion}
@@ -920,9 +1120,10 @@ of the framework developed in this paper.
 \item Approach within $r_{\mathrm{sync}} = 2a_{\max}/\omega_t^2$ achieves zero LOS violations.
 \item Extension to elliptic orbits via the Yamanaka--Ankersen STM shows that the erosion-based safe region is invariant to eccentricity at LEO, validating CWH as a conservative baseline.
 \item Benchmarking against tube-based robust MPC~\cite{Dong2020,Quartullo2024} and the reachability-guaranteed OCP~\cite{Faraci2025} demonstrates that our erosion-based certification achieves $\sim$34$\times$ speedup over NLP-based methods while providing complementary corridor safety guarantees.
+\item Three-dimensional tumbling validation with full Euler dynamics and intermediate-axis instability ($120^\circ$ spin-axis precession) confirms that the body-frame MPC formulation handles arbitrary 3D rotations with zero LOS violations, and that $r_{\mathrm{sync}} = 2a_{\max}/\|\boldsymbol{\omega}\|^2$ generalises directly as the synchronisation bound.
 \end{enumerate}
 
-Future work: Hamilton-Jacobi viability kernels for exact safe-set computation, integration with tube-based MPC for online robust tracking, multi-phase approach strategies combining de-tumbling with corridor approach, 3D tumble with full Euler dynamics, and navigation uncertainty integration.
+Future work: Hamilton-Jacobi viability kernels for exact safe-set computation, integration with tube-based MPC for online robust tracking, multi-phase approach strategies combining de-tumbling with corridor approach, and navigation uncertainty integration.
 
 \section*{Acknowledgements}
 

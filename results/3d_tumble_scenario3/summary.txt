@@ -1,0 +1,20 @@
+Scenario 3 — Equal 3-Axis Tumble at 3 deg/s
+=============================================
+
+Target MOI   : I = diag([500, 800, 600]) kg.m^2
+omega_0      : [0.0300, 0.0300, 0.0300] rad/s  = [1.72, 1.72, 1.72] deg/s
+|omega_0|    : 0.0520 rad/s = 2.98 deg/s
+a_max        : 0.30 m/s^2
+r_sync       : 222.2 m
+r_0          : [-20, 150, 20] m  (|r_0| = 152.6 m)
+T_sim        : 600 s  (dt = 1.0 s, 600 steps)
+MPC horizon  : Np = 40
+Cone half-ang: 30 deg
+
+RESULTS:
+  Final dist   : 5.00 m
+  LOS violations: 0 / 600 (0.0%)
+  Omega axis shift: 79.4 deg
+  Delta-v total: 58.1 m/s
+  Wall time    : 14.7 s
+  QP solver    : quadprog

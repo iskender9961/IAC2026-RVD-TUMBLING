@@ -113,8 +113,12 @@ Altitude & 500 km & Circular LEO \\
 $n$ & $1.131 \times 10^{-3}$ rad/s & Mean motion \\
 $J_2$ & $1.083 \times 10^{-3}$ & Zonal harmonic \\
 \midrule
-\multicolumn{3}{l}{\emph{Target}} \\
-$\omega_t$ & $\{1,2,3,4,5\}$ deg/s & Tumble rate about body $z$ \\
+\multicolumn{3}{l}{\emph{Target (planar parametric sweep, Sections~\ref{sec:reachability}--\ref{sec:results})}} \\
+$\omega_t$ & $\{1,2,3,4,5\}$ deg/s & Spin rate about body $z$ \\
+\multicolumn{3}{l}{\emph{Target (3D tumbling, Section~\ref{sec:3d_tumble})}} \\
+$\mat{I}$ & $\mathrm{diag}(500, 800, 600)$ kg$\cdot$m$^2$ & Principal MOI \\
+$\boldsymbol{\omega}_0$ & $[0.005, 0.004, 0.034]^\top$ rad/s & Initial angular velocity \\
+ & ($|\boldsymbol{\omega}_0| \approx 2.0$ deg/s) & (intermediate-axis instability) \\
 \midrule
 \multicolumn{3}{l}{\emph{Chaser}} \\
 $a_{\max}$ & $\{0.20, 0.10, 0.05, 0.02\}$ m/s$^2$ & Max thrust-to-mass ratio \\

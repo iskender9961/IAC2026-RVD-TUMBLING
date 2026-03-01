@@ -151,7 +151,7 @@ Centred on the target, with axes:
 \hat{\mathbf{y}}_L = \hat{\mathbf{z}}_L \times \hat{\mathbf{x}}_L,
 \label{eq:lvlh_def}
 \end{equation}
-so $x_L$ is radially outward, $y_L$ approximately along-track, and $z_L$ orbit-normal.  $R_{IL}$ maps $\mathcal{F}_L$ vectors to~$\mathcal{F}_I$.
+so $x_L$ is radially outward, $y_L$ approximately along-track, and $z_L$ orbit-normal.  $R_{IL}$ maps $\mathcal{F}_L$ vectors to~$\mathcal{F}_I$.  Figure~\ref{fig:traj_2d} shows a representative approach trajectory projected onto the $x$--$y$ plane in both $\mathcal{F}_B$ and $\mathcal{F}_L$, and Figure~\ref{fig:traj_3d} shows the three-dimensional view in $\mathcal{F}_B$.
 
 \paragraph{Target Body Frame $\mathcal{F}_B$.}
 Fixed to the tumbling target with $+y_B$ along the docking axis.  Orientation relative to $\mathcal{F}_I$ is tracked by the unit quaternion $\mathbf{q}_{IB}$ (scalar-first), propagated via:
@@ -446,49 +446,6 @@ The same conceptual mechanism operates in the spacecraft LOS corridor problem: t
 \includegraphics[width=\textwidth]{fig_double_integrator_reachability.png}
 \caption{Forward reachable sets for the 2D constrained double integrator~\eqref{eq:di_system} over $N=5$ steps.  \textbf{(a)}~Nominal set (no disturbance): green region shows all states reachable from $\mathcal{X}_0$ (green square at origin) via admissible controls while satisfying state constraints (dashed box).  \textbf{(b)}~Robust set: purple region accounts for worst-case bounded disturbance $\mathcal{W}$; the boundary contracts by $\sim$4\% relative to nominal, especially near constraint corners.  \textbf{(c)}~Overlay: the robust set is strictly contained within the nominal set, illustrating the inclusion $\mathcal{X}_{\mathrm{rob}} \subseteq \mathcal{X}_{\mathrm{nom}}$ by construction.}
 \label{fig:di_reachability}
-\end{figure}
-
-\subsection{Single-Scenario Closed-Loop Approach}
-
-Before the parametric sweep, we examine a single representative case ($\omega_t = 1$~deg/s, $a_{\max} = 0.10$~m/s$^2$) in detail.  The chaser starts at $[0, 200, 0]^\top$~m in LVLH with zero initial velocity.
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=\textwidth]{fig_approach_profile.png}
-\caption{Approach profile for the baseline scenario ($\omega_t = 1$~deg/s, $a_{\max} = 0.10$~m/s$^2$).  \textbf{Top:} distance along the docking axis ($y_{TB}$) vs.\ the exponential reference.  The chaser tracks the reference closely, with small oscillations during the initial transient caused by CWH cross-coupling.  \textbf{Middle:} radial deviation $\sqrt{x_{TB}^2 + z_{TB}^2}$ from the docking axis.  After a 25~m peak during the initial settling, the deviation converges to near zero.  \textbf{Bottom:} minimum LOS cone margin (positive = inside cone).  The margin remains positive throughout, confirming zero LOS violations.}
-\label{fig:approach_profile}
-\end{figure}
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.6\textwidth]{fig_cost_vs_time.png}
-\caption{MPC stage cost $J_k$ versus time for the baseline scenario.  The cost peaks at $\sim$10\,000 during the initial transient when the state deviation from the reference is largest, then decays monotonically as the chaser converges to the hold point.  The secondary bump near $t = 40$~s corresponds to the CWH along-track oscillation visible in Fig.~\ref{fig:approach_profile}.  After $t = 300$~s the cost approaches zero, indicating near-perfect tracking.}
-\label{fig:cost_vs_time}
-\end{figure}
-
-\subsection{Input-Rate Penalty Sensitivity}
-
-The input-rate penalty $R_{\Delta u}$ controls the trade-off between tracking aggressiveness and control smoothness.  Four values are compared: $R_{\Delta u} \in \{10^5, 10^6, 10^7, 10^8\} \times \mathrm{diag}(1, 0.1, 1)$.
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=\textwidth]{fig_rdu_positions.png}
-\caption{Position components versus time for four $R_{\Delta u}$ values, in target body (left) and LVLH (right) frames.  \textbf{$x$-axis:} all scenarios converge $x_{TB} \to 0$; lower $R_{\Delta u}$ produces faster settling but larger initial overshoot (up to 30~m).  In LVLH, the radial excursion reaches $-130$~m due to CWH drift before returning to origin.  \textbf{$y$-axis:} docking-axis approach profiles are nearly identical across all four cases, showing that the exponential reference dominates the approach rate.  \textbf{$z$-axis:} cross-track motion remains within $\pm$50~m in both frames; the $R_{\Delta u} = 10^8$ case shows slightly larger $J_2$-induced drift at late times due to its inability to command rapid corrections.}
-\label{fig:rdu_positions}
-\end{figure}
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=\textwidth]{fig_rdu_control_tb.png}
-\caption{Control acceleration components in $\mathcal{F}_B$ for four $R_{\Delta u}$ values.  \textbf{$u_{x,TB}$:} the lowest penalty ($R_{\Delta u} = 10^5$, blue) produces the most aggressive corrections, with peak thrust of $0.15$~m/s$^2$ and persistent oscillations during hold; higher penalties progressively smooth the response.  \textbf{$u_{y,TB}$:} all cases show similar magnitude ($\pm 0.05$--$0.10$~m/s$^2$) reflecting the common approach reference, but the $R_{\Delta u} = 10^5$ case exhibits higher-frequency content.  \textbf{$u_{z,TB}$:} the cross-track control effort is negligible ($< 0.2$~m/s$^2$) for all cases because the planar tumble does not excite the $z$-axis; the scale confirms that this is a predominantly 2D problem.}
-\label{fig:rdu_control}
-\end{figure}
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.75\textwidth]{fig_rdu_deltav.png}
-\caption{Cumulative $\Delta v$ versus time for the four $R_{\Delta u}$ cases.  Lower input-rate penalties produce higher fuel consumption: $R_{\Delta u} = 10^5$ reaches 19.5~m/s at $t = 600$~s, while $R_{\Delta u} = 10^8$ uses only 14.8~m/s---a 24\% reduction.  The curves diverge primarily during the first 100~s (initial manoeuvre) and again during steady-state hold (due to different control chattering levels).  This quantifies the fuel--smoothness trade-off: aggressive penalties track faster but at higher propellant cost.}
-\label{fig:rdu_deltav}
 \end{figure}
 
 \subsection{Nominal Forward Reachability}
@@ -988,22 +945,27 @@ is along the $y_B$ docking axis to within 10~m.
 \label{fig:3d_trajectory}
 \end{figure}
 
-Figure~\ref{fig:3d_omega} presents the target angular velocity components
-and spin-axis precession angle.  The intermediate-axis instability causes
-$\omega_z$ (the initially dominant component) to exchange energy with
-$\omega_x$ and $\omega_y$, producing $120^\circ$ of axis precession over
-400~s.  The angular momentum magnitude $|\boldsymbol{\omega}|$ remains
-constant (torque-free), confirming correct Euler integration.
+Figure~\ref{fig:3d_cost} shows the MPC stage cost
+$J_k = (\mathbf{x}_k - \mathbf{x}_{\mathrm{ref}})^\top \mat{Q}\,
+(\mathbf{x}_k - \mathbf{x}_{\mathrm{ref}}) +
+\mathbf{u}_k^\top \mat{R}_u\,\mathbf{u}_k$ over the 400-step approach.
+The cost peaks during the initial transient when the chaser is far from
+the docking axis, then decays over three orders of magnitude as the
+trajectory converges.  The oscillatory structure reflects the polhode
+period of the tumbling body frame: each time the body frame rotates
+through a large-precession phase ($\sim$120~s period), the MPC must
+expend additional effort to track the moving docking axis, producing
+local cost peaks that are absent in the planar (single-axis) case.
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.95\columnwidth]{fig_omega_components.png}
-\caption{Target angular velocity components (left axis) and spin-axis
-  precession from initial $\boldsymbol{\omega}_0$ (right axis, magenta).
-  The intermediate-axis instability causes dramatic energy exchange between
-  body axes while conserving $|\boldsymbol{\omega}|$ (dashed black).
-  The MPC handles this time-varying rotation without modification.}
-\label{fig:3d_omega}
+\includegraphics[width=0.95\columnwidth]{fig_cost_history.png}
+\caption{MPC stage cost history for the 3D tumbling approach.
+  The cost decays from $\sim$10$^4$ to $\sim$10$^1$ as the chaser converges.
+  Oscillatory modulation corresponds to the polhode period of the
+  intermediate-axis instability; each precession cycle requires
+  increased control effort to maintain LOS cone compliance.}
+\label{fig:3d_cost}
 \end{figure}
 
 Figure~\ref{fig:3d_summary} provides a six-panel overview of the approach.
@@ -1200,7 +1162,8 @@ The out-of-plane motion is decoupled:
 
 \noindent The T-H equations reduce to the standard CW (HCW) equations when
 $e = 0$ and the independent variable is changed from $\nu$ to time $t$
-(with $\nu = nt$ for circular orbits).
+(with $\nu = nt$ for circular orbits).  Figure~\ref{fig:ya_derivation_flow}
+summarises the derivation flow from T-H equations to the full YA-STM.
 
 % --- TikZ: Derivation flowchart ---
 \begin{figure}[ht]
@@ -1341,7 +1304,8 @@ The complete $6\times 6$ STM in physical coordinates is assembled as:
   \label{eq:full_STM}
 \end{equation}
 where $\tilde{\Phi}^{-1}(\nu_0, 0)$ is the inverse of $\tilde{\Phi}$
-evaluated at $\nu_0$ with $J = 0$.  The inverse transform is:
+evaluated at $\nu_0$ with $J = 0$ (see Figure~\ref{fig:stm_structure}
+for the block structure).  The inverse transform is:
 \begin{equation}
   \mat{T}^{-1}(\nu) =
   \begin{bmatrix}
